@@ -6,9 +6,9 @@ open work.
 
 ## Layout
 
-- `www/` is the whole site: `index.html`, `style.css`, `app.js`, the pixel
-  font in `fonts/`, and `places.json`. Leaflet comes from unpkg and the tiles
-  from OpenStreetMap. No build step.
+- `www/` is the whole site: `index.html`, `style.css`, `app.js` and
+  `places.json`. Leaflet comes from unpkg and the tiles from OpenStreetMap.
+  No build step.
 - `update.py` regenerates `places.json`. `tests/` covers the script and checks
   the data.
 
@@ -86,19 +86,24 @@ the page credits Google Maps and links each place to it.
 
 ## Site
 
-The look is a 90s management sim: gray beveled windows, navy title bars, and
-the Silkscreen pixel font for titles, labels and buttons only. Anything meant
-to be read (names, notes, hours) stays in a plain sans-serif.
+The look is plain and contemporary: a white panel floating over a full-bleed
+map on desktop, the map on top and a sheet below on phones, system fonts, one
+blue for data and near-black for the primary button. A retro management-sim
+skin (gray bevels, pixel font) was tried on 2026-10-01 and rejected as corny;
+keep the personality in the name and the simulation, not the chrome.
 
-Clicking a pin or a row opens the restaurant card in place of the list: stat
-bars, today's hours, links, a shortlist star, and LOG IT, which copies the
-`visit.py` command because the page cannot write visits itself. The shortlist
-lives in that browser's local storage. RUN SIMULATION picks from the shortlist
-when it holds two or more places, otherwise from what the filters show,
-weighted toward higher scores.
+The map uses the standard OpenStreetMap tiles washed to light gray with a CSS
+filter. CARTO's light basemap would look better but now requires an API key.
 
-Pins are squares drawn by a small extension of Leaflet's canvas renderer in
-`app.js`. It uses Leaflet internals, so recheck it before moving off 1.9.4.
+Clicking a pin or a row opens the restaurant card in place of the controls and
+list: stat bars, an open-now chip, links, a shortlist toggle, and "Log a
+visit", which shows and copies the `visit.py` command because the page cannot
+write visits itself. The shortlist lives in that browser's local storage. "Run
+simulation" picks from the shortlist when it holds two or more places,
+otherwise from what the filters show, weighted toward higher scores.
+
+Framing the map (fit, pan to a pin) goes through `clearOfPanel()` in `app.js`
+so nothing lands underneath the floating panel.
 
 The quality tiers (pin color and size) are cut at `tier_cuts` in
 `places.json`, which `update.py` sets so each outer tier holds about a fifth of
