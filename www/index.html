@@ -140,7 +140,7 @@
     <div id="controls">
       <label class="slider">
         <span class="slider-head"><span>Drive time</span><output id="time-value"></output></span>
-        <input id="time" type="range" min="3" max="15" step="1" value="10">
+        <input id="time" type="range" min="3" max="20" step="1" value="10">
       </label>
       <label class="slider" id="quality-control" hidden>
         <span class="slider-head"><span>Quality</span><output id="quality-value"></output></span>
@@ -169,8 +169,9 @@
 
   <script>
     // Score at or above each cut moves a place up a tier. Tiers and the quality
-    // slider compare the score as displayed, rounded to one decimal.
-    const TIER_CUTS = [4.2, 4.4];
+    // slider compare the score as displayed, rounded to one decimal. The cuts
+    // come from places.json, where update.py sizes them to the data.
+    let tierCuts = [4.2, 4.5];
     const TIER_RADIUS = [5, 6.5, 8];
     const tierColors = [0, 1, 2].map(
       n => getComputedStyle(document.documentElement).getPropertyValue(`--tier-${n}`).trim());
@@ -193,7 +194,7 @@
 
     function tier(place) {
       if (place.score === undefined) return 1;
-      return TIER_CUTS.filter(cut => shownScore(place) >= cut).length;
+      return tierCuts.filter(cut => shownScore(place) >= cut).length;
     }
 
     function shownScore(place) {
@@ -267,7 +268,8 @@
       place.row.scrollIntoView({ block: 'nearest' });
     }
 
-    fetch('places.json').then(r => r.json()).then(({ office, places, updated }) => {
+    fetch('places.json').then(r => r.json()).then(({ office, places, updated, tier_cuts }) => {
+      if (tier_cuts) tierCuts = tier_cuts;
       places = places.filter(p => !p.hidden);
       const hasScores = places.some(p => p.score !== undefined);
       const state = { cuisine: '', visits: '', sort: hasScores ? 'score' : 'minutes' };
@@ -357,7 +359,7 @@
 
       if (hasScores) {
         $('quality-control').hidden = false;
-        const labels = [`under ${TIER_CUTS[0]}`, `${TIER_CUTS[0]} to ${TIER_CUTS[1]}`, `${TIER_CUTS[1]} and up`];
+        const labels = [`under ${tierCuts[0]}`, `${tierCuts[0]} to ${tierCuts[1]}`, `${tierCuts[1]} and up`];
         $('legend').append(...labels.map((label, n) => {
           const item = el('span', '', label);
           item.prepend(el('span', `dot tier-${n}`));
