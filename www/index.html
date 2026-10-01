@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lunch</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <style>
+    :root {
+      --ink: #1f2328;
+      --muted: #656d76;
+      --line: #e3e6ea;
+      --bg: #ffffff;
+      --hover: #f4f6f8;
+      --accent: #c2410c;
+      --office: #1f2328;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      display: flex;
+      font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+    #panel {
+      width: 340px;
+      flex: none;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--line);
+      min-height: 0;
+    }
+    header { padding: 16px 16px 10px; }
+    h1 { margin: 0; font-size: 22px; }
+    #summary { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+    #filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 0 16px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    #filters button {
+      font: inherit;
+      font-size: 13px;
+      padding: 3px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--bg);
+      color: var(--ink);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    #filters button[aria-pressed="true"] {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: #fff;
+    }
+    #list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
+    #list li {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--line);
+      cursor: pointer;
+    }
+    #list li:hover, #list li.selected { background: var(--hover); }
+    #list li.selected { box-shadow: inset 3px 0 var(--accent); }
+    .row { display: flex; justify-content: space-between; gap: 12px; }
+    .name { font-weight: 600; }
+    .miles { color: var(--muted); font-size: 13px; white-space: nowrap; }
+    .meta, .notes { color: var(--muted); font-size: 13px; }
+    #map { flex: 1; min-width: 0; }
+    .office-pin {
+      width: 16px;
+      height: 16px;
+      background: var(--office);
+      border: 3px solid #fff;
+      border-radius: 3px;
+      box-shadow: 0 0 0 1px var(--office);
+      transform: rotate(45deg);
+    }
+    .leaflet-popup-content { margin: 12px 14px; font: inherit; font-size: 14px; }
+    .popup .name { font-size: 15px; }
+    .popup .notes { margin-top: 4px; }
+    .popup .links { margin-top: 8px; display: flex; gap: 12px; }
+    .popup a { color: var(--accent); font-weight: 600; text-decoration: none; }
+
+    @media (max-width: 700px) {
+      body { flex-direction: column-reverse; height: 100dvh; }
+      #panel { width: auto; flex: 1; border-right: 0; border-top: 1px solid var(--line); }
+      #map { flex: none; height: 45dvh; }
+      header { padding: 10px 16px 8px; display: flex; align-items: baseline; gap: 10px; }
+      h1 { font-size: 18px; }
+      #filters { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="panel">
+    <header>
+      <h1>Lunch</h1>
+      <p id="summary"></p>
+    </header>
+    <div id="filters"></div>
+    <ul id="list"></ul>
+  </div>
+  <div id="map"></div>
+
+  <script>
+    const map = L.map('map');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+
+    function el(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text) node.textContent = text;
+      return node;
+    }
+
+    function miles(a, b) {
+      const rad = d => d * Math.PI / 180;
+      const dp = rad(b.lat - a.lat), dl = rad(b.lon - a.lon);
+      const h = Math.sin(dp / 2) ** 2 +
+        Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dl / 2) ** 2;
+      return 3958.8 * 2 * Math.asin(Math.sqrt(h));
+    }
+
+    function popupFor(place, office) {
+      const box = el('div', 'popup');
+      box.append(
+        el('div', 'name', place.name),
+        el('div', 'meta', `${place.cuisine} · ${place.price} · ${place.miles.toFixed(1)} mi`),
+      );
+      if (place.notes) box.append(el('div', 'notes', place.notes));
+      const links = el('div', 'links');
+      const directions = el('a', '', 'Directions');
+      directions.href = 'https://www.google.com/maps/dir/?api=1' +
+        `&origin=${office.lat},${office.lon}` +
+        `&destination=${encodeURIComponent(place.name + ', ' + place.address)}`;
+      links.append(directions);
+      if (place.url) {
+        const site = el('a', '', 'Website');
+        site.href = place.url;
+        links.append(site);
+      }
+      for (const a of links.children) { a.target = '_blank'; a.rel = 'noopener'; }
+      box.append(links);
+      return box;
+    }
+
+    function select(place) {
+      document.querySelectorAll('#list li.selected').forEach(li => li.classList.remove('selected'));
+      place.row.classList.add('selected');
+      place.row.scrollIntoView({ block: 'nearest' });
+    }
+
+    function render(places, cuisine) {
+      const shown = places.filter(p => !cuisine || p.cuisine === cuisine);
+      const list = document.getElementById('list');
+      list.replaceChildren(...shown.map(p => p.row));
+      for (const p of places) {
+        if (shown.includes(p)) p.marker.addTo(map);
+        else p.marker.remove();
+      }
+      for (const button of document.querySelectorAll('#filters button')) {
+        button.setAttribute('aria-pressed', button.dataset.cuisine === (cuisine || ''));
+      }
+    }
+
+    fetch('places.json').then(r => r.json()).then(({ office, places }) => {
+      L.marker([office.lat, office.lon], {
+        icon: L.divIcon({ className: '', html: '<div class="office-pin"></div>', iconSize: [16, 16] }),
+        zIndexOffset: 1000,
+      }).addTo(map).bindPopup(el('div', 'popup', `${office.name}: ${office.address}`));
+
+      for (const p of places) p.miles = miles(office, p);
+      places.sort((a, b) => a.miles - b.miles);
+
+      for (const p of places) {
+        p.marker = L.circleMarker([p.lat, p.lon], {
+          radius: 8, color: '#fff', weight: 2, fillColor: '#c2410c', fillOpacity: 0.9,
+        }).bindPopup(popupFor(p, office));
+        p.row = el('li');
+        p.marker.on('popupopen', () => select(p));
+        p.marker.on('popupclose', () => p.row.classList.remove('selected'));
+
+        const top = el('div', 'row');
+        top.append(el('span', 'name', p.name), el('span', 'miles', `${p.miles.toFixed(1)} mi`));
+        p.row.append(top, el('div', 'meta', `${p.cuisine} · ${p.price}`));
+        if (p.notes) p.row.append(el('div', 'notes', p.notes));
+        p.row.addEventListener('click', () => {
+          map.panTo([p.lat, p.lon]);
+          p.marker.openPopup();
+        });
+      }
+
+      const counts = {};
+      for (const p of places) counts[p.cuisine] = (counts[p.cuisine] || 0) + 1;
+      const cuisines = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
+      const filters = document.getElementById('filters');
+      for (const cuisine of ['', ...cuisines]) {
+        const button = el('button', '', cuisine || 'All');
+        button.dataset.cuisine = cuisine;
+        button.addEventListener('click', () => {
+          map.closePopup();
+          render(places, cuisine);
+        });
+        filters.append(button);
+      }
+
+      document.getElementById('summary').textContent =
+        `${places.length} places near ${office.address.split(',')[0]}`;
+      map.fitBounds(
+        L.latLngBounds([[office.lat, office.lon], ...places.map(p => [p.lat, p.lon])]),
+        { padding: [30, 30] },
+      );
+      render(places, '');
+    });
+  </script>
+</body>
+</html>
