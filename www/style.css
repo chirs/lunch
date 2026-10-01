@@ -249,6 +249,9 @@ h1::before { content: ""; width: 9px; height: 9px; border-radius: 50%; backgroun
 .toggles button:hover { color: var(--ink); }
 .toggles button[aria-pressed="true"] { color: var(--accent-ink); background: var(--accent); }
 
+.option { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.option input { width: 16px; height: 16px; margin: 0; flex: none; accent-color: var(--accent); }
+.option:has(input:checked) { color: var(--ink); }
 #legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font: 12px var(--mono); color: var(--muted); }
 #legend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; display: inline-block; }
@@ -406,7 +409,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   #top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 14px; }
   #summary { margin: 0; }
   #controls { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px 14px; padding-top: 10px; padding-bottom: 10px; }
-  #choices, #order, #legend { grid-column: 1 / -1; }
+  #choices, #order, #legend, .option { grid-column: 1 / -1; }
   .menu-panel { max-height: 28dvh; }
   /* On a phone the card takes the title's space too. */
   #panel.card-open #top { display: none; }

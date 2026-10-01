@@ -190,7 +190,7 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
   for (const group in members) members[group] = [...members[group]];
   const state = {
     cuisines: new Set(), prices: new Set(), expanded: new Set(),
-    show: '', sort: 'score', open: null, shown: [], simulating: false,
+    show: '', sort: 'score', inView: false, open: null, shown: [], simulating: false,
   };
 
   const map = L.map('map', { preferCanvas: true, zoomControl: false });
@@ -477,9 +477,14 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
   }
 
   function render() {
-    const inRange = visible();
+    // "Only what's in the map view" narrows the list, the counts and the
+    // simulation, but not the pins: those stay, so panning still finds them.
+    const matching = visible();
+    const bounds = state.inView ? map.getBounds() : null;
+    const inRange = bounds ? matching.filter(p => bounds.contains([p.lat, p.lon])) : matching;
     renderCuisines(inRange);
-    const shown = inRange.filter(p => !state.cuisines.size || state.cuisines.has(p.cuisine));
+    const picked = p => !state.cuisines.size || state.cuisines.has(p.cuisine);
+    const shown = inRange.filter(picked);
     const byTime = (a, b) => a.minutes - b.minutes;
     const byScore = (a, b) => b.score - a.score || byTime(a, b);
     shown.sort(state.sort === 'score' ? byScore : byTime);
@@ -487,7 +492,7 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
 
     // Best last, so the strongest pins draw on top.
     pins.clearLayers();
-    for (const p of shown.toSorted((a, b) => byScore(b, a))) pins.addLayer(p.marker);
+    for (const p of matching.filter(picked).sort((a, b) => byScore(b, a))) pins.addLayer(p.marker);
 
     for (const sortButton of document.querySelectorAll('#sort button')) {
       sortButton.setAttribute('aria-pressed', sortButton.dataset.sort === state.sort);
@@ -520,8 +525,21 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
     $('time').value = Math.max($('time').value, Number($('time-min').value) + 1);
     render();
   });
-  $('time-min').addEventListener('change', () => fit(render()));
-  $('time').addEventListener('change', () => fit(render()));
+  // Releasing a drive-time thumb reframes the map around the result, unless
+  // the list is following the map, where moving it would change the answer.
+  const reframe = () => {
+    const shown = render();
+    if (!state.inView) fit(shown);
+  };
+  $('time-min').addEventListener('change', reframe);
+  $('time').addEventListener('change', reframe);
+  $('in-view').addEventListener('change', event => {
+    state.inView = event.target.checked;
+    render();
+  });
+  map.on('moveend', () => {
+    if (state.inView) render();
+  });
   $('quality').addEventListener('input', render);
   $('cuisine-clear').addEventListener('click', () => {
     state.cuisines.clear();
