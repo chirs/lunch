@@ -53,7 +53,7 @@ SUMMARY_CALLS = 300
 PAGE_SIZE = 20
 MAX_MINUTES = 23  # written to places.json, where the site's sliders read it
 MIN_REVIEWS = 20
-HAND_FIELDS = ("notes", "my_rating", "visited", "hidden")
+HAND_FIELDS = ("notes", "my_rating", "my_cuisine", "visited", "hidden")
 
 FIELD_MASK = ",".join(
     f"places.{field}"
@@ -401,7 +401,7 @@ GROUPS = {
     "Mediterranean": ["Mediterranean", "Middle Eastern", "Greek", "Halal", "Persian", "Turkish", "Lebanese"],
     "Seafood": ["Seafood"],
     "African": ["African", "Ethiopian"],
-    "Other": ["Other", "Buffet", "Vegetarian", "Vegan", "Dessert", "Soup", "Australian"],
+    "Other": ["Other", "Buffet", "Vegetarian", "Vegan", "Dessert", "Soup", "Australian", "Food Hall"],
 }
 CUISINE_GROUPS = {cuisine: group for group, cuisines in GROUPS.items() for cuisine in cuisines}
 # Words that give a cuisine away in Google's written summary of a place: the
@@ -711,6 +711,9 @@ def main():
         data["updated"] = raw["fetched"]
     else:
         print("no google_raw.json; keeping the current list")
+    for place in data["places"]:
+        if place.get("my_cuisine"):
+            place["cuisine"] = place["my_cuisine"]
 
     untimed = [p for p in data["places"] if "minutes" not in p]
     for place, minutes in zip(untimed, drive_minutes(office, untimed)):

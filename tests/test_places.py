@@ -19,6 +19,8 @@ def test_fields(place):
         assert 1 <= place["score"] <= 5
     if "my_rating" in place:
         assert place["score"] == place["my_rating"], "run update.py --cached"
+    if "my_cuisine" in place:
+        assert place["cuisine"] == place["my_cuisine"], "run update.py --cached"
     if place.get("visited") not in (None, True):
         datetime.date.fromisoformat(place["visited"])
 
