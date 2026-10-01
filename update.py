@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Refresh www/places.json: discover places, time the drive, score them.
 
-    ./update.py                 # everything; needs GOOGLE_MAPS_API_KEY in .env
-    ./update.py --skip-google   # drive times and scores only, uses no quota
+    ./update.py            # everything; needs GOOGLE_MAPS_API_KEY in .env
+    ./update.py --cached   # no Google calls: re-filter the last results saved
+                           # in google_raw.json, then drive times and scores
 
 Google's Nearby Search returns at most 20 places per call with no paging, so
 discovery walks a hex grid of circles around the office and splits any circle
@@ -25,6 +26,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 PLACES = ROOT / "www/places.json"
+RAW = ROOT / "google_raw.json"
 ENV = ROOT / ".env"
 USER_AGENT = "lunch.edgemon.org (github.com/chirs/lunch)"
 
@@ -32,6 +34,11 @@ SEARCH_MILES = 8
 CELL_METERS = 1500
 MIN_CELL_METERS = 375  # two splits: 1500 -> 750 -> 375
 MAX_CALLS = 800  # 1,000 a month are free
+# Icehouses and sports bars often lack Google's "restaurant" type, so they get
+# a second pass that asks whether each serves lunch. That extra field bills as
+# a different SKU with its own 1,000 free calls.
+BAR_TYPES = ["bar", "bar_and_grill", "sports_bar", "pub", "brewpub"]
+MAX_BAR_CALLS = 200
 PAGE_SIZE = 20
 MAX_MINUTES = 15
 MIN_REVIEWS = 20
@@ -83,14 +90,58 @@ CHAINS = (
     "taco bueno",
     "wendys",
 )
-GENERIC_TYPES = {None, "restaurant", "fast_food_restaurant", "meal_takeaway", "meal_delivery", "food_court"}
+# Primary types that count as somewhere to eat lunch, besides anything ending
+# in _restaurant. Google also tags gas stations, smoothie shops and strip clubs
+# as restaurants; their primary types are not here.
+LUNCH_TYPES = {
+    "restaurant",
+    "meal_takeaway",
+    "food_court",
+    "sandwich_shop",
+    "deli",
+    "bagel_shop",
+    "salad_shop",
+    "steak_house",
+    "diner",
+    "cafe",
+    "bistro",
+    "kebab_shop",
+    "noodle_shop",
+    *BAR_TYPES,
+}
+# Anything not listed becomes its type name: korean_restaurant -> Korean.
 CUISINES = {
+    "restaurant": "Other",
+    "meal_takeaway": "Other",
+    "food_court": "Other",
+    "fine_dining_restaurant": "Other",
+    "fast_food_restaurant": "Fast Food",
+    "family_restaurant": "American",
+    "southwestern_us_restaurant": "American",
     "hamburger_restaurant": "Burgers",
     "pizza_restaurant": "Pizza",
     "sandwich_shop": "Sandwiches",
+    "deli": "Sandwiches",
+    "bagel_shop": "Sandwiches",
+    "salad_shop": "Salads",
     "steak_house": "Steakhouse",
     "sushi_restaurant": "Japanese",
     "ramen_restaurant": "Japanese",
+    "taco_restaurant": "Mexican",
+    "tex_mex_restaurant": "Mexican",
+    "korean_barbecue_restaurant": "Korean",
+    "chicken_wings_restaurant": "Chicken",
+    "south_indian_restaurant": "Indian",
+    "hot_pot_restaurant": "Chinese",
+    "dim_sum_restaurant": "Chinese",
+    "noodle_shop": "Asian",
+    "asian_fusion_restaurant": "Asian",
+    "gyro_restaurant": "Greek",
+    "shawarma_restaurant": "Middle Eastern",
+    "kebab_shop": "Middle Eastern",
+    "breakfast_restaurant": "Breakfast",
+    "brunch_restaurant": "Breakfast",
+    **dict.fromkeys(BAR_TYPES, "Bar & Grill"),
 }
 
 
@@ -132,9 +183,9 @@ def split(lat, lon, radius_m):
     return [(c_lat, c_lon, radius_m / 2) for c_lat, c_lon in centers]
 
 
-def search_nearby(key, lat, lon, radius_m):
+def search_nearby(key, lat, lon, radius_m, types, field_mask=FIELD_MASK):
     body = {
-        "includedTypes": ["restaurant"],
+        "includedTypes": types,
         "maxResultCount": PAGE_SIZE,
         "rankPreference": "POPULARITY",
         "locationRestriction": {
@@ -147,21 +198,25 @@ def search_nearby(key, lat, lon, radius_m):
         headers={
             "Content-Type": "application/json",
             "X-Goog-Api-Key": key,
-            "X-Goog-FieldMask": FIELD_MASK,
+            "X-Goog-FieldMask": field_mask,
         },
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         return json.load(response).get("places", [])
 
 
-def discover(office, search):
-    """Every place the search finds within SEARCH_MILES, keyed by Google id."""
+def discover(office, search, max_calls):
+    """Every place the search finds within SEARCH_MILES, keyed by Google id.
+
+    Cells are searched breadth-first, so when max_calls runs out the whole area
+    has been covered coarsely and only the densest spots are short.
+    """
     cells = deque(
         (lat, lon, CELL_METERS)
         for lat, lon in hex_grid(office["lat"], office["lon"], SEARCH_MILES * 1609.34, CELL_METERS)
     )
     found, calls, truncated = {}, 0, 0
-    while cells and calls < MAX_CALLS:
+    while cells and calls < max_calls:
         lat, lon, radius = cells.popleft()
         results = search(lat, lon, radius)
         calls += 1
@@ -173,10 +228,10 @@ def discover(office, search):
             else:
                 truncated += 1
         if calls % 25 == 0:
-            print(f"  {calls} calls, {len(found)} places, {len(cells)} cells queued")
+            print(f"  {calls} calls, {len(found)} places, {len(cells)} cells queued", flush=True)
     print(f"{calls} calls, {len(found)} places found")
     if cells:
-        print(f"stopped at {MAX_CALLS} calls with {len(cells)} cells unsearched")
+        print(f"stopped at {max_calls} calls with {len(cells)} cells unsearched")
     if truncated:
         print(f"{truncated} smallest cells were still full, so some places there are missing")
     return found
@@ -212,6 +267,9 @@ def is_chain(name):
 def drop_reason(place, office):
     if place.get("businessStatus", "OPERATIONAL") != "OPERATIONAL":
         return "closed"
+    primary_type = place.get("primaryType") or ""
+    if not primary_type.endswith("_restaurant") and primary_type not in LUNCH_TYPES:
+        return "not a restaurant"
     location = place["location"]
     miles = haversine_miles(office["lat"], office["lon"], location["latitude"], location["longitude"])
     if miles > SEARCH_MILES:
@@ -226,8 +284,6 @@ def drop_reason(place, office):
 
 
 def cuisine(primary_type):
-    if primary_type in GENERIC_TYPES:
-        return "Other"
     if primary_type in CUISINES:
         return CUISINES[primary_type]
     return primary_type.removesuffix("_restaurant").replace("_", " ").title()
@@ -237,7 +293,7 @@ def to_record(place):
     record = {
         "id": place["id"],
         "name": place["displayName"]["text"],
-        "cuisine": cuisine(place.get("primaryType")),
+        "cuisine": cuisine(place["primaryType"]),
         "address": place["formattedAddress"].removesuffix(", USA"),
         "lat": round(place["location"]["latitude"], 6),
         "lon": round(place["location"]["longitude"], 6),
@@ -271,6 +327,20 @@ def merge(existing, records):
         if place.get("id") not in kept and any(place.get(field) for field in HAND_FIELDS)
     ]
     return records, lost
+
+
+def nearest_per_name(places):
+    """One pin per chain: the closest branch, plus any branch with hand fields."""
+    nearest = {}
+    for place in places:
+        best = nearest.get(place["name"])
+        if best is None or place["minutes"] < best["minutes"]:
+            nearest[place["name"]] = place
+    return [
+        place
+        for place in places
+        if nearest[place["name"]] is place or any(place.get(field) for field in HAND_FIELDS)
+    ]
 
 
 def drive_minutes(office, places):
@@ -315,24 +385,42 @@ def api_key():
             if name.strip() == "GOOGLE_MAPS_API_KEY":
                 key = value.strip().strip("\"'")
     if not key:
-        sys.exit("set GOOGLE_MAPS_API_KEY in .env, or pass --skip-google")
+        sys.exit("set GOOGLE_MAPS_API_KEY in .env, or pass --cached")
     return key
+
+
+def fetch(office):
+    key = api_key()
+    print("restaurants:")
+    found = discover(
+        office, lambda *cell: search_nearby(key, *cell, ["restaurant"]), MAX_CALLS
+    )
+    print("bars that serve lunch:")
+    bars = discover(
+        office,
+        lambda *cell: search_nearby(key, *cell, BAR_TYPES, FIELD_MASK + ",places.servesLunch"),
+        MAX_BAR_CALLS,
+    )
+    found.update({id: bar for id, bar in bars.items() if bar.get("servesLunch")})
+    return found
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--skip-google", action="store_true", help="drive times and scores only")
+    parser.add_argument("--cached", action="store_true", help="reuse google_raw.json, no API calls")
     args = parser.parse_args()
 
     data = json.loads(PLACES.read_text())
     office = data["office"]
 
-    if not args.skip_google:
-        key = api_key()
-        found = discover(office, lambda lat, lon, radius: search_nearby(key, lat, lon, radius))
+    if not args.cached:
+        today = datetime.datetime.now().astimezone().date().isoformat()
+        RAW.write_text(json.dumps({"fetched": today, "places": fetch(office)}))
+    if RAW.exists():
+        raw = json.loads(RAW.read_text())
         reasons = Counter()
         records = []
-        for place in found.values():
+        for place in raw["places"].values():
             reason = drop_reason(place, office)
             if reason:
                 reasons[reason] += 1
@@ -343,18 +431,22 @@ def main():
         data["places"], lost = merge(data["places"], records)
         for place in lost:
             print(f"  hand-written entry no longer matched: {place['name']}")
-        data["updated"] = datetime.datetime.now().astimezone().date().isoformat()
+        data["updated"] = raw["fetched"]
+    else:
+        print("no google_raw.json; keeping the current list")
 
     untimed = [p for p in data["places"] if "minutes" not in p]
     for place, minutes in zip(untimed, drive_minutes(office, untimed)):
         place["minutes"] = minutes
     in_range = [p for p in data["places"] if p["minutes"] is not None and p["minutes"] <= MAX_MINUTES]
     print(f"timed {len(untimed)} places; dropped {len(data['places']) - len(in_range)} over {MAX_MINUTES} minutes")
+    kept = nearest_per_name(in_range)
+    print(f"dropped {len(in_range) - len(kept)} farther branches of the same name")
 
-    add_scores(in_range)
-    data["places"] = sorted(in_range, key=lambda p: (p["name"].lower(), p["address"]))
+    add_scores(kept)
+    data["places"] = sorted(kept, key=lambda p: (p["name"].lower(), p["address"]))
     PLACES.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-    print(f"{len(in_range)} places written")
+    print(f"{len(kept)} places written")
 
 
 if __name__ == "__main__":

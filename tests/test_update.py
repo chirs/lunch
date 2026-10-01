@@ -13,6 +13,7 @@ from update import (
     hex_grid,
     is_chain,
     merge,
+    nearest_per_name,
     open_for_lunch,
     split,
     to_record,
@@ -92,16 +93,15 @@ def test_discover_splits_full_cells_and_dedupes(monkeypatch):
             return [{"id": f"p{n}"} for n in range(update.PAGE_SIZE)]
         return [{"id": "p0"}, {"id": f"small-{len(calls)}"}]
 
-    found = discover(OFFICE, search)
+    found = discover(OFFICE, search, max_calls=1000)
     top = calls.count(update.CELL_METERS)
     assert calls.count(update.CELL_METERS / 2) == 7 * top
     assert len(found) == update.PAGE_SIZE + 7 * top
 
 
-def test_discover_stops_at_the_call_cap(monkeypatch):
-    monkeypatch.setattr(update, "MAX_CALLS", 3)
+def test_discover_stops_at_the_call_cap():
     calls = []
-    discover(OFFICE, lambda lat, lon, radius: calls.append(radius) or [])
+    discover(OFFICE, lambda lat, lon, radius: calls.append(radius) or [], max_calls=3)
     assert len(calls) == 3
 
 
@@ -144,6 +144,9 @@ def test_is_chain(name, expected):
     [
         ({}, None),
         ({"businessStatus": "CLOSED_PERMANENTLY"}, "closed"),
+        ({"primaryType": "convenience_store"}, "not a restaurant"),
+        ({"primaryType": None}, "not a restaurant"),
+        ({"primaryType": "sports_bar"}, None),
         ({"location": {"latitude": 33.2, "longitude": -96.9}}, "outside the search area"),
         ({"userRatingCount": 5}, "under 20 reviews"),
         ({"displayName": {"text": "Taco Bell"}}, "fast-food chain"),
@@ -162,7 +165,10 @@ def test_drop_reason(overrides, expected):
         ("hamburger_restaurant", "Burgers"),
         ("sandwich_shop", "Sandwiches"),
         ("restaurant", "Other"),
-        (None, "Other"),
+        ("fast_food_restaurant", "Fast Food"),
+        ("taco_restaurant", "Mexican"),
+        ("sports_bar", "Bar & Grill"),
+        ("diner", "Diner"),
     ],
 )
 def test_cuisine(primary_type, expected):
@@ -214,6 +220,23 @@ def test_merge_reports_hand_entries_that_vanish():
     ]
     _, lost = merge(existing, [{"id": "a", "name": "A"}])
     assert [place["name"] for place in lost] == ["Closed Cafe", "No id"]
+
+
+def test_nearest_per_name_keeps_the_closest_branch():
+    places = [
+        {"name": "Whataburger", "minutes": 9.0},
+        {"name": "Whataburger", "minutes": 4.0},
+        {"name": "Keller's Drive-In", "minutes": 7.0},
+    ]
+    assert nearest_per_name(places) == [places[1], places[2]]
+
+
+def test_nearest_per_name_keeps_hand_annotated_branches():
+    places = [
+        {"name": "Mi Cocina", "minutes": 12.0, "notes": "The one with the patio."},
+        {"name": "Mi Cocina", "minutes": 6.0},
+    ]
+    assert nearest_per_name(places) == places
 
 
 def test_scores_shrink_toward_the_average():
