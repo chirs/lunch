@@ -1,3 +1,4 @@
+import json
 import math
 import random
 
@@ -18,6 +19,8 @@ from update import (
     split,
     tier_cuts,
     to_record,
+    week_hours,
+    write_places,
 )
 
 OFFICE = {"lat": 32.870246, "lon": -96.911634}
@@ -195,7 +198,33 @@ def test_to_record():
         "maps": "https://maps.google.com/?cid=1",
         "price": "$$",
         "url": "http://www.dallasseoulgarden.com/",
+        "hours": ["1100-2200"] * 7,
     }
+
+
+def test_week_hours():
+    lunch_and_dinner = [hours(1, 17, 22), hours(1, 11, 14), hours(5, 17, 2, close_day=6)]
+    place = {"regularOpeningHours": {"periods": lunch_and_dinner}}
+    assert week_hours(place) == ["", "1100-1400,1700-2200", "", "", "", "1700-0200", ""]
+
+
+def test_week_hours_always_open_and_unlisted():
+    always = {"regularOpeningHours": {"periods": [{"open": {"day": 0, "hour": 0, "minute": 0}}]}}
+    assert week_hours(always) == ["0000-2400"] * 7
+    assert week_hours({}) is None
+
+
+def test_write_places_round_trips_one_place_per_line(tmp_path):
+    data = {
+        "office": {"name": "Office"},
+        "places": [{"name": "Pizza Patrón", "hours": ["", "1100-2200"]}, {"name": "B"}],
+        "tier_cuts": [4.3, 4.5],
+    }
+    path = tmp_path / "places.json"
+    write_places(path, data)
+    text = path.read_text()
+    assert json.loads(text) == data
+    assert '{"name":"Pizza Patrón","hours":["","1100-2200"]},\n{"name":"B"}\n' in text
 
 
 def test_to_record_without_price_or_website():

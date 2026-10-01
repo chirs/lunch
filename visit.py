@@ -16,7 +16,7 @@ import json
 import re
 import sys
 
-from update import PLACES, add_scores
+from update import PLACES, add_scores, write_places
 
 
 def plain(text):
@@ -74,7 +74,7 @@ def main():
     else:
         record_visit(place, args.date, args.rating, args.notes)
     add_scores(data["places"])
-    PLACES.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    write_places(PLACES, data)
 
     shown = {k: place[k] for k in ("visited", "my_rating", "notes", "score") if k in place}
     print(f"{place['name']}: {shown}")

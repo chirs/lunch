@@ -260,6 +260,27 @@ def open_for_lunch(place):
     return False
 
 
+def week_hours(place):
+    """Opening hours as seven strings, Sunday first, or None if Google lists none.
+
+    A day reads "1100-2200", "1100-1400,1700-2200", or "" when closed. A range
+    that runs past midnight stays on the day it opens ("1700-0200"), and a
+    place that never closes is "0000-2400" every day.
+    """
+    periods = place.get("regularOpeningHours", {}).get("periods")
+    if not periods:
+        return None
+    if any("close" not in period for period in periods):
+        return ["0000-2400"] * 7
+    days = [[] for _ in range(7)]
+    for period in periods:
+        start, end = period["open"], period["close"]
+        days[start["day"]].append(
+            f"{start['hour']:02d}{start['minute']:02d}-{end['hour']:02d}{end['minute']:02d}"
+        )
+    return [",".join(sorted(day)) for day in days]
+
+
 def is_chain(name):
     plain = re.sub(r"[^a-z0-9 -]", "", name.lower().replace("é", "e").replace("ó", "o"))
     return plain.startswith(CHAINS)
@@ -333,6 +354,9 @@ def to_record(place):
         record["price"] = PRICES[place["priceLevel"]]
     if "websiteUri" in place:
         record["url"] = place["websiteUri"]
+    hours = week_hours(place)
+    if hours:
+        record["hours"] = hours
     return record
 
 
@@ -418,6 +442,15 @@ def tier_cuts(places):
     return [low, high]
 
 
+def write_places(path, data):
+    """One place per line: half the size of indented JSON, and diffs stay per place."""
+    head = json.dumps({k: v for k, v in data.items() if k != "places"}, ensure_ascii=False, indent=2)
+    places = ",\n".join(
+        json.dumps(place, ensure_ascii=False, separators=(",", ":")) for place in data["places"]
+    )
+    path.write_text(f'{head[:-2]},\n  "places": [\n{places}\n  ]\n}}\n')
+
+
 def api_key():
     key = os.environ.get("GOOGLE_MAPS_API_KEY")
     if not key and ENV.exists():
@@ -491,7 +524,7 @@ def main():
     if ungrouped:
         print(f"cuisines in no group, shown under Other: {', '.join(ungrouped)}")
     data["places"] = sorted(kept, key=lambda p: (p["name"].lower(), p["address"]))
-    PLACES.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    write_places(PLACES, data)
     print(f"{len(kept)} places written")
 
 
