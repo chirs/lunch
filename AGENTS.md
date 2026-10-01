@@ -52,6 +52,11 @@ That run also searched only 8 miles out, before the limit went from 15 to 20
 minutes. The 20-minute reach is 9 to 12 miles along the freeways, so beyond 8
 miles the list holds only what spilled over from the edge cells.
 
+Each place's `cuisine` comes from Google's primary type (`CUISINES` renames
+and merges a few). `GROUPS` sorts the cuisines into the ten groups of the
+site's first dropdown; the second dropdown drills into one group. A cuisine in
+no group shows under Other, and a run prints any it finds.
+
 `notes`, `my_rating`, `visited` and `hidden` are hand-written per place and
 survive every run. `my_rating` replaces the computed score; `visited` is `true`
 or a `YYYY-MM-DD` date; `hidden: true` removes a place from the site. The
