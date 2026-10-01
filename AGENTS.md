@@ -89,9 +89,16 @@ put Whataburger under Chicken and a pupuseria under Bar & Grill. A branch
 still left as Other then takes the cuisine of its same-named branches
 (`share_cuisines()`).
 
-About 54 places (3%) still end up as Other. Sanjh and Monaco are among them:
-no cuisine type, nothing in the name, and Google has no summary for either.
-Only 69 of the 122 places asked about had a summary at all.
+Only 69 of the 122 places asked about had a summary at all, which left 54 as
+Other. Nine of those (Sanjh, Lions Den, Casa Brasa and others) were then given
+a `my_cuisine` by hand from D Magazine on 2026-10-01, leaving 45, Monaco among
+them.
+
+D Magazine cannot be used as a dataset. Its directory sits behind a bot
+challenge and its robots file disallows Anthropic's crawler, so nothing there
+was fetched. The nine came from search-engine results for dmagazine.com, one
+restaurant at a time, checked against the address. That works for the places
+D has written about (about half of the 32 tried) and not for small ones.
 
 A full fetch asks for `types`, and any fetch then looks up a summary for each
 place still Other (`add_summaries()`, Place Details with `editorialSummary`
@@ -109,9 +116,10 @@ that runs past midnight stays on the day it opens. `places.json` holds one
 place per line, which keeps it small and keeps diffs to the places that
 changed.
 
-`notes`, `my_rating`, `visited` and `hidden` are hand-written per place and
-survive every run. `my_rating` replaces the computed score; `visited` is `true`
-or a `YYYY-MM-DD` date; `hidden: true` removes a place from the site. The
+`notes`, `my_rating`, `my_cuisine`, `visited` and `hidden` are hand-written per
+place and survive every run. `my_rating` replaces the computed score and
+`my_cuisine` the computed cuisine; `visited` is `true` or a `YYYY-MM-DD` date;
+`hidden: true` removes a place from the site. The
 script prints any hand-annotated place that Google no longer returns instead
 of dropping it silently.
 

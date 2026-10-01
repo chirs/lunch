@@ -9,7 +9,7 @@ Open work only; completed items are removed as they land (see git history).
 - [ ] Make a full run search the right area: build the grid from cells whose centers are within the 23-minute cap (OSRM is free) and pass it to `search_cells()`, instead of a 14-mile circle that wastes calls on unreachable land; the 20 to 23 minute band has never been searched on purpose
 - [ ] With that in place, rerun the fetch to pick up the less popular places in dense spots; the runs so far stopped at their call caps with several hundred small cells unsearched
 - [ ] Replace the seed notes with real reviews as places get visited (`visit.py`)
-- [ ] Label the last 54 "Other" places (Sanjh, Monaco, ...), which Google has no cuisine type or summary for: OpenStreetMap's cuisine tags cover about a dozen, then Overture or D Magazine's directory, then a per-place `cuisine` override that survives refreshes, like `notes` does
+- [ ] Label the last 45 "Other" places (Monaco, Palma, ...) with `my_cuisine`: OpenStreetMap's cuisine tags cover about a dozen of them, Overture may cover more, and the rest need a look at each place's own website
 - [ ] Drop the handful of non-restaurants the summaries exposed (a florist, a smoothie shop, a bowling alley, a sno-cone stand)
 - [ ] Bump the score for editorial recognition (D Magazine, Eater, Texas Monthly, Michelin)
 - [ ] Drive times with lunch-hour traffic instead of free-flow
