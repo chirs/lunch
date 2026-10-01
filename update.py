@@ -305,7 +305,8 @@ GROUPS = {
     "Italian & European": ["Pizza", "Italian", "French", "Irish", "German", "Spanish", "Tapas", "European", "Bistro"],
     "Mediterranean": ["Mediterranean", "Middle Eastern", "Greek", "Halal", "Persian", "Turkish"],
     "Seafood": ["Seafood"],
-    "Other": ["Other", "Buffet", "Vegetarian", "Dessert", "African", "Ethiopian"],
+    "African": ["African", "Ethiopian"],
+    "Other": ["Other", "Buffet", "Vegetarian", "Dessert"],
 }
 CUISINE_GROUPS = {cuisine: group for group, cuisines in GROUPS.items() for cuisine in cuisines}
 

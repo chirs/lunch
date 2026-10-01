@@ -21534,11 +21534,11 @@
     "Persian": "Mediterranean",
     "Turkish": "Mediterranean",
     "Seafood": "Seafood",
+    "African": "African",
+    "Ethiopian": "African",
     "Other": "Other",
     "Buffet": "Other",
     "Vegetarian": "Other",
-    "Dessert": "Other",
-    "African": "Other",
-    "Ethiopian": "Other"
+    "Dessert": "Other"
   }
 }
