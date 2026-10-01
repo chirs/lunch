@@ -49,10 +49,22 @@ A full run does five things:
 Both passes hit their caps on the first run (2026-10-01), so the densest spots
 are missing their less popular places. Bachman Tacos & Grill is a known miss.
 
-`notes`, `my_rating` and `hidden` are hand-written per place and survive every
-run. `my_rating` replaces the computed score; `hidden: true` removes a place
-from the site. The script prints any hand-annotated place that Google no
-longer returns instead of dropping it silently.
+`notes`, `my_rating`, `visited` and `hidden` are hand-written per place and
+survive every run. `my_rating` replaces the computed score; `visited` is `true`
+or a `YYYY-MM-DD` date; `hidden: true` removes a place from the site. The
+script prints any hand-annotated place that Google no longer returns instead
+of dropping it silently.
+
+Record a visit with `visit.py`, then commit, push and deploy:
+
+```bash
+./visit.py "hong dumpling"                  # visited, no date
+./visit.py "hong dumpling" --date today --rating 4.5 --notes "Get the kimchi dumplings."
+./visit.py "hong dumpling" --undo           # clears the visit, keeps notes and rating
+```
+
+Any part of the name works; an ambiguous name lists the candidates and changes
+nothing. `--notes` is the review and overwrites the existing notes.
 
 Storing Google ratings and showing them on a non-Google map are both outside
 Google's Places terms. That was a deliberate choice for a small personal site;
