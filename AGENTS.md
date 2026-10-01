@@ -49,17 +49,28 @@ A full run does five things:
    weighted by review count, so a 4.8 from 30 reviews ranks below a 4.6 from
    3,000.
 
-Both passes hit their caps on the first run (2026-10-01), so the densest spots
-are missing their less popular places. Bachman Tacos & Grill is a known miss.
-That run also searched only 8 miles out, before the limit went from 15 to 20
-minutes. The 20-minute reach is 9 to 12 miles along the freeways, so beyond 8
-miles the list holds only what spilled over from the edge cells, plus downtown
-Grapevine (16 to 18 minutes away), which was topped up with `--near` on
-2026-10-01 because it was wanted and entirely missing.
+Coverage, as of 2026-10-01. The data was built in three fetches the same day:
+
+- The full run searched 8 miles out and hit both call caps, so the densest
+  spots are missing their less popular places. Bachman Tacos & Grill is a
+  known miss.
+- The limit then went from 15 to 20 minutes, which reaches 9 to 12 miles along
+  the freeways. Downtown Grapevine (16 to 18 minutes) was entirely missing and
+  was topped up with `--near`: 77 restaurant calls and 14 bar calls.
+- An audit against OpenStreetMap found 42 grid cells reachable in 20 minutes
+  that had never been searched. A one-off run searched 39 of them (not the
+  airport, and not downtown Dallas or Carrollton's Old Denton Road, which the
+  first run's overlap had covered well) plus the Addison Belt Line strip. It
+  stopped at 230 restaurant calls with 201 small cells still queued.
+
+So every reachable area now has at least its 20 most popular places, and the
+gaps that remain are the less popular places in dense spots. October's calls
+on the ratings tier came to about 1,110 against 1,000 free.
 
 `--near` is the cheap way to fill a known hole: it searches a small circle,
-adds the results to `google_raw.json`, and reruns the rest. The Grapevine
-top-up took 77 restaurant calls and 14 bar calls.
+adds the results to `google_raw.json`, and reruns the rest. `search_cells()`
+takes an explicit list of circles when a hex grid around one point is not the
+right shape.
 
 Each place's `cuisine` comes from Google's primary type (`CUISINES` renames
 and merges a few). `GROUPS` sorts the cuisines into the groups of the site's
