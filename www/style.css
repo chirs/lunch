@@ -92,6 +92,9 @@ h1::before { content: ""; width: 9px; height: 9px; border-radius: 50%; backgroun
 /* Controls */
 #controls {
   display: grid;
+  /* minmax(0, ...) keeps a long cuisine label from widening the column and
+     dragging every other control with it. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   padding: 12px var(--gutter) 14px;
   border-bottom: 1px solid var(--line);
@@ -176,7 +179,7 @@ h1::before { content: ""; width: 9px; height: 9px; border-radius: 50%; backgroun
 }
 .menu summary::-webkit-details-marker { display: none; }
 .menu summary::after { content: "▾"; color: var(--muted); font-size: 12px; }
-#cuisine-summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#cuisine-summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menu-panel {
   position: absolute;
   z-index: 20;
@@ -402,7 +405,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   :root { --gutter: 16px; }
   #top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 14px; }
   #summary { margin: 0; }
-  #controls { grid-template-columns: 1fr 1fr; gap: 10px 14px; padding-top: 10px; padding-bottom: 10px; }
+  #controls { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px 14px; padding-top: 10px; padding-bottom: 10px; }
   #choices, #order, #legend { grid-column: 1 / -1; }
   .menu-panel { max-height: 28dvh; }
   /* On a phone the card takes the title's space too. */

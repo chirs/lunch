@@ -413,15 +413,15 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
     return row;
   }
 
-  function cuisineSummary() {
-    if (!state.cuisines.size) return 'All cuisines';
+  // Names of what is ticked: a whole group by its name, otherwise the cuisines.
+  function tickedNames() {
     const names = [];
     for (const [group, cuisines] of Object.entries(members)) {
       const ticked = cuisines.filter(c => state.cuisines.has(c));
       if (ticked.length === cuisines.length) names.push(group);
       else names.push(...ticked);
     }
-    return names.length > 2 ? `${names.slice(0, 2).join(', ')} +${names.length - 2}` : names.join(', ');
+    return names;
   }
 
   // The cuisine checklist: one box per group, which opens to tick single
@@ -467,7 +467,12 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
     }));
     list.scrollTop = scroll;
     if (focused) list.querySelector(`[data-key="${CSS.escape(focused)}"]`)?.focus();
-    $('cuisine-summary').textContent = cuisineSummary();
+    // The button has a fixed width, so a long selection is cut short there and
+    // spelled out in full on hover.
+    const names = tickedNames();
+    $('cuisine-summary').textContent = !names.length ? 'All cuisines'
+      : names.length > 2 ? `${names.slice(0, 2).join(', ')} +${names.length - 2}` : names.join(', ');
+    $('cuisine-summary').title = names.join(', ');
     $('cuisine-clear').hidden = state.cuisines.size === 0;
   }
 
