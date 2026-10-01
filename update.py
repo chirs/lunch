@@ -7,8 +7,8 @@
 
 Google's Nearby Search returns at most 20 places per call with no paging, so
 discovery walks a hex grid of circles around the office and splits any circle
-that comes back full. Hand-written fields (notes, my_rating, hidden) survive
-every run.
+that comes back full. Hand-written fields (notes, my_rating, visited, hidden)
+survive every run.
 """
 
 import argparse
@@ -42,7 +42,7 @@ MAX_BAR_CALLS = 200
 PAGE_SIZE = 20
 MAX_MINUTES = 15
 MIN_REVIEWS = 20
-HAND_FIELDS = ("notes", "my_rating", "hidden")
+HAND_FIELDS = ("notes", "my_rating", "visited", "hidden")
 
 FIELD_MASK = ",".join(
     f"places.{field}"
