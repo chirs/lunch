@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Lunch Simulator</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16'/%3E%3Crect x='1' y='1' width='14' height='14' fill='%23104281'/%3E%3Crect x='5' y='5' width='6' height='6' fill='%23fff'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%232a78d6'/%3E%3Ccircle cx='8' cy='8' r='2.5' fill='%23fff'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <link rel="stylesheet" href="style.css">
@@ -12,49 +12,47 @@
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
-  <div id="desk">
-    <section id="panel" class="window">
-      <header class="titlebar">
-        <h1>Lunch Simulator</h1>
-        <span id="summary"></span>
-      </header>
-      <div id="controls">
-        <label class="slider">
-          <span class="slider-head"><span class="label">Drive time</span><output id="time-value"></output></span>
-          <input id="time" type="range" min="3" max="20" step="1" value="10">
-        </label>
-        <label class="slider">
-          <span class="slider-head"><span class="label">Quality</span><output id="quality-value"></output></span>
-          <input id="quality" type="range" min="3.8" max="4.7" step="0.1" value="3.8">
-        </label>
-        <div id="choices">
-          <select id="group" aria-label="Cuisine group"></select>
-          <select id="cuisine" aria-label="Cuisine" hidden></select>
-        </div>
-        <div id="order">
-          <select id="show" aria-label="Show">
-            <option value="">Visited or not</option>
-            <option value="new">Not visited yet</option>
-            <option value="visited">Visited</option>
-            <option value="shortlist">Shortlist</option>
-          </select>
-          <div id="sort" role="group" aria-label="Sort by">
-            <button type="button" class="button" data-sort="score">Best</button>
-            <button type="button" class="button" data-sort="minutes">Nearest</button>
-          </div>
-        </div>
-        <div id="legend"></div>
+  <div id="map"></div>
+  <section id="panel">
+    <header id="top">
+      <h1>Lunch Simulator</h1>
+      <p id="summary"></p>
+    </header>
+    <div id="controls">
+      <label class="slider">
+        <span class="slider-head"><span class="label">Drive time</span><output id="time-value"></output></span>
+        <input id="time" type="range" min="3" max="20" step="1" value="10">
+      </label>
+      <label class="slider">
+        <span class="slider-head"><span class="label">Quality</span><output id="quality-value"></output></span>
+        <input id="quality" type="range" min="3.8" max="4.7" step="0.1" value="3.8">
+      </label>
+      <div id="choices">
+        <select id="group" aria-label="Cuisine group"></select>
+        <select id="cuisine" aria-label="Cuisine" hidden></select>
       </div>
-      <ul id="list" class="inset"></ul>
-      <article id="card" class="window" hidden></article>
-    </section>
-    <div id="map" class="inset"></div>
-  </div>
-  <footer id="status" class="window">
-    <button type="button" id="simulate" class="button">&#9654; Run simulation</button>
-    <span id="counts" class="inset"></span>
-    <span id="credit" class="inset"></span>
-  </footer>
+      <div id="order">
+        <select id="show" aria-label="Show">
+          <option value="">Visited or not</option>
+          <option value="new">Not visited yet</option>
+          <option value="visited">Visited</option>
+          <option value="shortlist">Shortlist</option>
+        </select>
+        <div id="sort" role="group" aria-label="Sort by">
+          <button type="button" data-sort="score">Best</button>
+          <button type="button" data-sort="minutes">Nearest</button>
+        </div>
+      </div>
+      <div id="legend"></div>
+    </div>
+    <ul id="list"></ul>
+    <article id="card" hidden></article>
+    <footer id="foot">
+      <button type="button" id="simulate" class="button primary">Run simulation</button>
+      <span id="counts"></span>
+      <span id="credit"></span>
+    </footer>
+  </section>
   <script src="app.js"></script>
 </body>
 </html>

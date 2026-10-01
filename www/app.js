@@ -1,7 +1,6 @@
 // Lunch Simulator. The data is places.json, which update.py writes.
 
-const TIER_HALF_WIDTH = [5, 6, 7];
-const SEGMENTS = 10;
+const TIER_RADIUS = [5, 6.5, 8];
 const MAX_MINUTES = 20;
 const SHORTLIST_KEY = 'lunch-shortlist';
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -22,34 +21,19 @@ function el(tag, className, text) {
   return node;
 }
 
-function link(label, href) {
-  const a = el('a', 'button', label);
+function button(label, className = 'button') {
+  const node = el('button', className, label);
+  node.type = 'button';
+  return node;
+}
+
+function link(label, href, className = 'button') {
+  const a = el('a', className, label);
   a.href = href;
   a.target = '_blank';
   a.rel = 'noopener';
   return a;
 }
-
-// Pins are squares. Leaflet's canvas renderer only knows circles, so this
-// draws the square itself and leaves hit-testing to the circle underneath.
-L.Canvas.include({
-  _updateSquare(layer) {
-    if (!this._drawing || layer._empty()) return;
-    const ctx = this._ctx;
-    const half = layer._radius;
-    const x = Math.round(layer._point.x) - half, y = Math.round(layer._point.y) - half;
-    ctx.beginPath();
-    ctx.rect(x, y, half * 2, half * 2);
-    this._fillStroke(ctx, layer);
-    if (layer.options.visited) {
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(x + half - 2, y + half - 2, 4, 4);
-    }
-  },
-});
-const SquareMarker = L.CircleMarker.extend({
-  _updatePath() { this._renderer._updateSquare(this); },
-});
 
 function shownScore(place) {
   return Number(place.score.toFixed(1));
@@ -120,28 +104,23 @@ function openStatus(hours, now = new Date()) {
   return { open: false, text: 'Closed' };
 }
 
-function bar(filled, className = '') {
-  const node = el('span', `bar inset ${className}`);
-  const on = Math.max(0, Math.min(SEGMENTS, Math.round(filled)));
-  for (let n = 0; n < SEGMENTS; n++) node.append(el('i', n < on ? 'on' : ''));
-  return node;
-}
-
-function stat(label, filled, value, className) {
+function stat(label, fraction, value, className = '') {
   const term = el('dt', '', label), detail = el('dd');
-  detail.append(bar(filled, className), el('span', 'value', value));
+  const bar = el('span', `bar ${className}`), fill = el('i');
+  fill.style.width = `${Math.round(Math.max(0, Math.min(1, fraction)) * 100)}%`;
+  bar.append(fill);
+  detail.append(bar, el('span', 'value', value));
   return [term, detail];
 }
 
 function stats(place) {
   const list = el('dl', 'stats');
   list.append(
-    ...stat('Quality', (place.score - 3.5) / 1.5 * SEGMENTS, place.score.toFixed(1), `tier-${tier(place)}`),
-    ...stat('Speed', (MAX_MINUTES - place.minutes) / MAX_MINUTES * SEGMENTS, minutesText(place)),
+    ...stat('Quality', (place.score - 3.5) / 1.5, place.score.toFixed(1), `tier-${tier(place)}`),
+    ...stat('Drive', (MAX_MINUTES - place.minutes) / MAX_MINUTES, minutesText(place)),
     // Review counts run from 20 to tens of thousands, so the bar is logarithmic.
-    ...stat('Crowd', Math.max(1, (Math.log10(place.reviews) - 1.3) / 2.7 * SEGMENTS),
-      `${place.reviews.toLocaleString()} votes`),
-    ...stat('Cost', place.price ? place.price.length * 2.5 : 0, place.price || 'not listed'),
+    ...stat('Reviews', Math.max(0.05, (Math.log10(place.reviews) - 1.3) / 2.7), place.reviews.toLocaleString()),
+    ...stat('Price', place.price ? place.price.length / 4 : 0, place.price || 'Not listed'),
   );
   return list;
 }
@@ -219,29 +198,38 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
   const shortlist = loadShortlist();
   const state = { group: '', cuisine: '', show: '', sort: 'score', open: null, shown: [], simulating: false };
 
-  const map = L.map('map', { preferCanvas: true });
+  const map = L.map('map', { preferCanvas: true, zoomControl: false });
+  L.control.zoom({ position: 'topright' }).addTo(map);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   }).addTo(map);
   const pins = L.layerGroup().addTo(map);
   L.marker([office.lat, office.lon], {
-    icon: L.divIcon({ className: '', html: '<div class="office-pin"></div>', iconSize: [16, 16] }),
+    icon: L.divIcon({ className: '', html: '<div class="office-pin"></div>', iconSize: [18, 18] }),
     zIndexOffset: 1000,
   }).addTo(map).bindTooltip(`${office.name}: ${office.address}`);
-  // Marks the open restaurant, and flicks around during a simulation.
+  // Marks the open restaurant, and jumps around during a simulation.
   const cursor = L.marker([office.lat, office.lon], {
-    icon: L.divIcon({ className: '', html: '<div class="cursor"></div>', iconSize: [30, 30] }),
+    icon: L.divIcon({ className: '', html: '<div class="cursor"></div>', iconSize: [34, 34] }),
     interactive: false,
     zIndexOffset: 900,
   });
+
+  // On desktop the panel floats over the left of the map, so anything that
+  // frames the map has to stay clear of it.
+  function clearOfPanel() {
+    const panel = $('panel').getBoundingClientRect();
+    const floating = panel.height < innerHeight && panel.left > 0;
+    return { paddingTopLeft: [floating ? panel.right + 24 : 24, 24], paddingBottomRight: [24, 24] };
+  }
 
   function rowFor(place) {
     const row = el('li');
     row.tabIndex = 0;
     const top = el('div', 'row');
     const score = el('span', 'score', place.score.toFixed(1));
-    score.prepend(el('span', `pin tier-${tier(place)}`));
+    score.prepend(el('span', `dot tier-${tier(place)}`));
     top.append(el('span', 'name', place.name), score);
     row.append(top, el('div', 'meta', meta(place)));
     if (place.visited) row.append(el('div', 'visited-line', visitedText(place)));
@@ -254,9 +242,9 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
   }
 
   for (const p of places) {
-    p.marker = new SquareMarker([p.lat, p.lon], {
-      radius: TIER_HALF_WIDTH[tier(p)], color: '#000', weight: 1,
-      fillColor: tierColors[tier(p)], fillOpacity: 1, visited: Boolean(p.visited),
+    p.marker = L.circleMarker([p.lat, p.lon], {
+      radius: TIER_RADIUS[tier(p)], color: p.visited ? '#0f172a' : '#fff', weight: 2,
+      fillColor: tierColors[tier(p)], fillOpacity: 1,
     });
     p.row = rowFor(p);
     markStar(p);
@@ -267,20 +255,20 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
     });
   }
 
-  function showCard(title, body) {
-    const bar = el('header', 'titlebar');
-    const close = el('button', 'button close', '×');
-    close.type = 'button';
-    close.setAttribute('aria-label', 'Close');
-    close.addEventListener('click', closeCard);
-    bar.append(el('h2', '', title), close);
-    $('card').replaceChildren(bar, body);
+  function showCard(...content) {
+    const top = el('div', 'card-top');
+    const back = button('← Back to list', 'ghost');
+    back.addEventListener('click', closeCard);
+    top.append(back);
+    $('card').replaceChildren(top, ...content);
+    $('card').scrollTop = 0;
     $('card').hidden = false;
     $('list').hidden = true;
     $('panel').classList.add('card-open');
   }
 
   function closeCard() {
+    if (state.simulating) return;
     const last = state.open;
     state.open = null;
     $('card').hidden = true;
@@ -296,22 +284,21 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
 
   function openCard(place, banner) {
     state.open = place;
-    const body = el('div', 'card-body');
-    if (banner) body.append(el('p', 'banner', banner));
 
+    const headline = el('div', 'headline');
+    if (banner) headline.append(el('p', 'banner', banner));
+    headline.append(el('h2', '', place.name), el('p', 'meta', meta(place)));
     const status = openStatus(place.hours);
-    body.append(
-      el('p', 'card-meta', [place.cuisine, place.price, status?.text ?? 'Hours not listed'].filter(Boolean).join(' · ')),
-      stats(place),
-      el('p', 'breakdown', breakdown(place, average)),
-    );
-    const actions = el('div', 'actions');
-    actions.append(link('Dispatch', directionsUrl(place, office)));
-    if (place.maps) actions.append(link('Intel', place.maps));
-    if (place.url) actions.append(link('Site', place.url));
+    const chip = el('span', `chip ${status?.open ? 'open' : ''}`, status?.text ?? 'Hours not listed');
+    chip.prepend(el('i'));
+    headline.append(chip);
 
-    const star = el('button', 'button');
-    star.type = 'button';
+    const actions = el('div', 'actions');
+    actions.append(link('Directions', directionsUrl(place, office), 'button primary'));
+    if (place.maps) actions.append(link('Google Maps', place.maps));
+    if (place.url) actions.append(link('Website', place.url));
+
+    const star = button('');
     const labelStar = () => {
       star.textContent = shortlist.has(place.id) ? '★ Shortlisted' : '☆ Shortlist';
       star.setAttribute('aria-pressed', shortlist.has(place.id));
@@ -325,55 +312,59 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
     });
     labelStar();
 
-    const command = el('div', 'command');
+    const command = el('div', 'command box');
     command.hidden = true;
-    const log = el('button', 'button', 'Log it');
-    log.type = 'button';
-    log.addEventListener('click', async () => {
+    const log = button('Log a visit');
+    log.addEventListener('click', () => {
+      // Show the command straight away; the clipboard can refuse or stall.
       const text = visitCommand(place);
-      let copied = true;
-      try {
-        await navigator.clipboard.writeText(text);
-      } catch {
-        copied = false;
-      }
-      command.replaceChildren(
-        el('span', '', copied ? 'Copied. Paste it in a terminal in the lunch repo:' : 'Run this in the lunch repo:'),
-        el('code', 'inset', text));
+      const lead = el('span', '', 'Run this in the lunch repo:');
+      command.replaceChildren(lead, el('code', '', text));
       command.hidden = false;
+      navigator.clipboard?.writeText(text).then(
+        () => { lead.textContent = 'Copied. Paste it in a terminal in the lunch repo:'; },
+        () => {});
     });
     actions.append(star, log);
-    body.append(actions, command);
-    if (place.visited) body.append(el('p', 'visited-line', visitedText(place)));
-    if (place.notes) body.append(el('p', 'card-notes inset', place.notes));
-    if (place.hours) body.append(weekTable(place.hours, new Date().getDay()));
 
-    showCard(place.name, body);
+    const rest = [];
+    if (place.visited) rest.push(el('p', 'visited-line', visitedText(place)));
+    if (place.notes) rest.push(el('p', 'box', place.notes));
+    if (place.hours) rest.push(weekTable(place.hours, new Date().getDay()));
+
+    showCard(headline, stats(place), el('p', 'breakdown', breakdown(place, average)), actions, command, ...rest);
     const spot = [place.lat, place.lon];
     cursor.setLatLng(spot).addTo(map);
-    if (!map.getBounds().pad(-0.1).contains(spot)) map.panTo(spot);
+    map.panInside(spot, clearOfPanel());
+  }
+
+  // What a simulation chooses from: the shortlist once it holds two places,
+  // otherwise whatever the filters show.
+  function pool() {
+    const starred = places.filter(p => shortlist.has(p.id));
+    return starred.length >= 2
+      ? { places: starred, label: `${starred.length} shortlisted` }
+      : { places: state.shown, label: `${state.shown.length} on the map` };
   }
 
   async function simulate() {
-    const starred = places.filter(p => shortlist.has(p.id));
-    const pool = starred.length >= 2 ? starred : state.shown;
-    if (state.simulating || !pool.length) return;
-    const winner = weightedPick(pool);
+    const { places: candidates, label } = pool();
+    if (state.simulating || !candidates.length) return;
+    const winner = weightedPick(candidates);
     const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (pool.length > 1 && !still) {
+    if (candidates.length > 1 && !still) {
       state.simulating = true;
       $('simulate').disabled = true;
-      const body = el('div', 'card-body simulating');
+      const body = el('div', 'simulating');
       const name = el('div', 'name'), detail = el('div', 'meta');
-      const from = starred.length >= 2 ? `${pool.length} shortlisted` : `${pool.length} on screen`;
-      body.append(el('p', 'banner', `Choosing from ${from}`), name, detail);
+      body.append(el('p', 'banner', `Choosing from ${label}`), name, detail);
       state.open = null;
-      showCard('Simulating lunch', body);
-      const everything = L.latLngBounds([[office.lat, office.lon], ...pool.map(p => [p.lat, p.lon])]);
-      if (!map.getBounds().contains(everything)) map.fitBounds(everything, { padding: [24, 24], animate: false });
+      showCard(body);
+      const everything = L.latLngBounds([[office.lat, office.lon], ...candidates.map(p => [p.lat, p.lon])]);
+      map.fitBounds(everything, { ...clearOfPanel(), maxZoom: 15, animate: false });
       const steps = 16;
       for (let step = 0; step < steps; step++) {
-        const p = step === steps - 1 ? winner : pool[Math.floor(Math.random() * pool.length)];
+        const p = step === steps - 1 ? winner : candidates[Math.floor(Math.random() * candidates.length)];
         cursor.setLatLng([p.lat, p.lon]).addTo(map);
         name.textContent = p.name;
         detail.textContent = meta(p);
@@ -383,7 +374,7 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
       state.simulating = false;
       $('simulate').disabled = false;
     }
-    openCard(winner, 'Simulation complete. Lunch is at:');
+    openCard(winner, 'Simulation complete. Lunch is at');
   }
 
   function visible() {
@@ -422,20 +413,21 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
     pins.clearLayers();
     for (const p of shown.toSorted((a, b) => byScore(b, a))) pins.addLayer(p.marker);
 
-    for (const button of document.querySelectorAll('#sort button')) {
-      button.setAttribute('aria-pressed', button.dataset.sort === state.sort);
+    for (const sortButton of document.querySelectorAll('#sort button')) {
+      sortButton.setAttribute('aria-pressed', sortButton.dataset.sort === state.sort);
     }
-    $('summary').textContent = `${shown.length} of ${places.length}`;
-    $('counts').textContent = `${shown.length} options · shortlist ${shortlist.size}`;
-    $('simulate').disabled = shown.length === 0 && shortlist.size < 2;
     state.shown = shown;
+    $('summary').textContent = `${shown.length.toLocaleString()} of ${places.length.toLocaleString()} places`;
+    const choice = pool();
+    $('counts').textContent = `Picks from ${choice.label}, favoring higher quality`;
+    $('simulate').disabled = state.simulating || choice.places.length === 0;
     return shown;
   }
 
   function fit(shown) {
     map.fitBounds(
       L.latLngBounds([[office.lat, office.lon], ...shown.map(p => [p.lat, p.lon])]),
-      { padding: [16, 16], maxZoom: 15 },
+      { ...clearOfPanel(), maxZoom: 15 },
     );
   }
 
@@ -455,29 +447,29 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
     state.show = event.target.value;
     render();
   });
-  for (const button of document.querySelectorAll('#sort button')) {
-    button.addEventListener('click', () => {
-      state.sort = button.dataset.sort;
+  for (const sortButton of document.querySelectorAll('#sort button')) {
+    sortButton.addEventListener('click', () => {
+      state.sort = sortButton.dataset.sort;
       render();
       $('list').scrollTop = 0;
     });
   }
   $('simulate').addEventListener('click', simulate);
   document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && !$('card').hidden && !state.simulating) closeCard();
+    if (event.key === 'Escape' && !$('card').hidden) closeCard();
   });
 
   const labels = [`under ${tierCuts[0]}`, `${tierCuts[0]} to ${tierCuts[1]}`, `${tierCuts[1]} and up`];
   $('legend').append(...labels.map((label, n) => {
     const item = el('span', '', label);
-    item.prepend(el('span', `pin tier-${n}`));
+    item.prepend(el('span', `dot tier-${n}`));
     return item;
   }));
   const visited = el('span', '', 'visited');
-  visited.prepend(el('span', 'pin visited'));
+  visited.prepend(el('span', 'dot ring'));
   $('legend').append(visited);
   $('credit').textContent =
-    `Ratings: Google Maps${updated ? `, ${updated}` : ''}. Drive times: OSRM, no traffic.`;
+    `Ratings: Google Maps${updated ? `, ${updated}` : ''} · Drive times: OSRM, no traffic`;
 
   fit(render());
 }
