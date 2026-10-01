@@ -102,7 +102,10 @@ range is two native range inputs stacked so that only their thumbs take
 clicks; dragging and arrow keys work, clicking the bare track does not. The checklist ticks whole groups (`GROUPS` in
 `update.py`) or opens a group to tick single cuisines; ticking several means
 "any of these". Price toggles work the same way, and a place with no price
-from Google drops out once any price is picked.
+from Google drops out once any price is picked. "Only what's in the map
+view" limits the list, the counts and the simulation to the visible map and
+follows it as it moves; the pins are not limited, so panning still finds them,
+and the drive-time thumbs stop reframing the map while it is on.
 
 Clicking a pin or a row opens the restaurant card in place of the controls and
 list: stat bars, an open-now chip, links, a shortlist toggle, and "Log a
