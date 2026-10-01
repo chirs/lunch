@@ -364,12 +364,24 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
     openCard(winner, 'Simulation complete. Lunch is at');
   }
 
+  // Colors the stretch of a slider's track that is selected, as fractions of
+  // its length. A thumb's center stops half a thumb short of each end of the
+  // track, so the fill follows that, except where it runs out to the very end.
+  function fillTrack(input, from, to) {
+    const fill = input.parentElement.querySelector('.fill');
+    const inset = fraction => `calc(var(--thumb) / 2 + ${fraction} * (100% - var(--thumb)))`;
+    fill.style.left = from === 0 ? '0' : inset(from);
+    fill.style.right = to === 1 ? '0' : inset(1 - to);
+  }
+
   function visible() {
-    const maxMinutes = Number($('time').value);
+    const minMinutes = Number($('time-min').value), maxMinutes = Number($('time').value);
     const quality = $('quality');
     const minScore = quality.value === quality.min ? null : Number(quality.value);
-    $('time-value').textContent = `${maxMinutes} min`;
+    $('time-value').textContent = minMinutes ? `${minMinutes} to ${maxMinutes} min` : `Up to ${maxMinutes} min`;
     $('quality-value').textContent = minScore === null ? 'Any' : `${minScore.toFixed(1)}+`;
+    fillTrack($('time'), minMinutes / MAX_MINUTES, maxMinutes / MAX_MINUTES);
+    fillTrack(quality, (quality.value - quality.min) / (quality.max - quality.min), 1);
     const show = {
       '': () => true,
       new: p => !p.visited,
@@ -377,7 +389,8 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
       shortlist: p => shortlist.has(p.id),
     }[state.show];
     return places.filter(p =>
-      p.minutes <= maxMinutes && (minScore === null || shownScore(p) >= minScore) && show(p) &&
+      p.minutes >= minMinutes && p.minutes <= maxMinutes &&
+      (minScore === null || shownScore(p) >= minScore) && show(p) &&
       (!state.prices.size || state.prices.has(p.price)));
   }
 
@@ -487,7 +500,17 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
     );
   }
 
-  $('time').addEventListener('input', render);
+  // The two drive-time thumbs stay at least a minute apart; the one being
+  // dragged stops when it reaches the other.
+  $('time-min').addEventListener('input', () => {
+    $('time-min').value = Math.min($('time-min').value, $('time').value - 1);
+    render();
+  });
+  $('time').addEventListener('input', () => {
+    $('time').value = Math.max($('time').value, Number($('time-min').value) + 1);
+    render();
+  });
+  $('time-min').addEventListener('change', () => fit(render()));
   $('time').addEventListener('change', () => fit(render()));
   $('quality').addEventListener('input', render);
   $('cuisine-clear').addEventListener('click', () => {

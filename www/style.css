@@ -37,6 +37,8 @@
   --pin-ring: #0f1417;
   --pin-visited: #ffffff;
   --gutter: 20px;
+  /* Slider thumb size, including the ring around the dot. Bigger for fingers. */
+  --thumb: 18px;
   --sans: Geist, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
@@ -78,6 +80,7 @@ h1::before { content: ""; width: 9px; height: 9px; border-radius: 50%; backgroun
 #summary { margin: 8px 0 0; color: var(--muted); font: 12px var(--mono); }
 
 .label, .stats dt, .banner {
+  white-space: nowrap;
   font-family: var(--mono);
   font-size: 10.5px;
   font-weight: 500;
@@ -93,10 +96,60 @@ h1::before { content: ""; width: 9px; height: 9px; border-radius: 50%; backgroun
   padding: 12px var(--gutter) 14px;
   border-bottom: 1px solid var(--line);
 }
-.slider { display: block; }
 .slider-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .slider output { font: 13px var(--mono); white-space: nowrap; }
-.slider input { display: block; width: 100%; margin: 6px 0 0; accent-color: var(--accent); }
+/* Sliders. The drive-time one has two thumbs, which no native input offers, so
+   two range inputs sit on top of each other and only their thumbs take clicks.
+   The fill between them is drawn by app.js. */
+.range { position: relative; height: 20px; margin-top: 5px; }
+.range::before, .range .fill {
+  content: "";
+  position: absolute;
+  top: 8px;
+  height: 4px;
+  border-radius: 2px;
+}
+.range::before { left: 0; right: 0; background: var(--track); }
+.range .fill { background: var(--accent); }
+.range input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 20px;
+  margin: 0;
+  background: none;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.range input::-webkit-slider-runnable-track { height: 20px; background: none; }
+.range input::-moz-range-track { height: 20px; background: none; }
+.range input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  pointer-events: auto;
+  width: var(--thumb);
+  height: var(--thumb);
+  margin-top: calc((20px - var(--thumb)) / 2);
+  border: calc((var(--thumb) - 12px) / 2) solid var(--bg);
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+.range input::-moz-range-thumb {
+  box-sizing: border-box;
+  pointer-events: auto;
+  width: var(--thumb);
+  height: var(--thumb);
+  border: calc((var(--thumb) - 12px) / 2) solid var(--bg);
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+@media (pointer: coarse) { :root { --thumb: 30px; } }
+.range input:focus-visible { outline: none; }
+.range input:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--accent); }
+.range input:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 2px var(--accent); }
 #choices, #order { position: relative; display: flex; gap: 8px; }
 #controls select, .menu summary {
   flex: 1;

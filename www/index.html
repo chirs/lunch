@@ -19,14 +19,21 @@
       <p id="summary"></p>
     </header>
     <div id="controls">
-      <label class="slider">
-        <span class="slider-head"><span class="label">Drive time</span><output id="time-value"></output></span>
-        <input id="time" type="range" min="3" max="20" step="1" value="10">
-      </label>
-      <label class="slider">
+      <div class="slider">
+        <span class="slider-head"><span class="label">Drive</span><output id="time-value"></output></span>
+        <div class="range">
+          <i class="fill"></i>
+          <input id="time-min" type="range" min="0" max="20" step="1" value="0" aria-label="Shortest drive, minutes">
+          <input id="time" type="range" min="0" max="20" step="1" value="10" aria-label="Longest drive, minutes">
+        </div>
+      </div>
+      <div class="slider">
         <span class="slider-head"><span class="label">Quality</span><output id="quality-value"></output></span>
-        <input id="quality" type="range" min="3.8" max="4.7" step="0.1" value="3.8">
-      </label>
+        <div class="range">
+          <i class="fill"></i>
+          <input id="quality" type="range" min="3.8" max="4.7" step="0.1" value="3.8" aria-label="Lowest quality score">
+        </div>
+      </div>
       <div id="choices">
         <details id="cuisine-menu" class="menu">
           <summary><span id="cuisine-summary">All cuisines</span></summary>
