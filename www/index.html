@@ -15,8 +15,12 @@
       --line: #e3e6ea;
       --bg: #ffffff;
       --hover: #f4f6f8;
-      --accent: #c2410c;
+      --accent: #256abf;
       --office: #1f2328;
+      /* One blue, light to dark: the three quality tiers. */
+      --tier-0: #86b6ef;
+      --tier-1: #2a78d6;
+      --tier-2: #104281;
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; }
@@ -34,32 +38,50 @@
       border-right: 1px solid var(--line);
       min-height: 0;
     }
-    header { padding: 16px 16px 10px; }
+    header { padding: 16px 16px 8px; }
     h1 { margin: 0; font-size: 22px; }
     #summary { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
-    #filters {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      padding: 0 16px 12px;
+    #controls {
+      display: grid;
+      gap: 10px;
+      padding: 4px 16px 12px;
       border-bottom: 1px solid var(--line);
-    }
-    #filters button {
-      font: inherit;
       font-size: 13px;
-      padding: 3px 10px;
+    }
+    .slider { display: block; }
+    .slider-head { display: flex; justify-content: space-between; }
+    .slider output { color: var(--muted); }
+    .slider input { display: block; width: 100%; margin: 4px 0 0; accent-color: var(--accent); }
+    #choices { display: flex; gap: 8px; }
+    #cuisine {
+      flex: 1;
+      min-width: 0;
+      font: inherit;
+      padding: 4px 6px;
       border: 1px solid var(--line);
-      border-radius: 999px;
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--ink);
+    }
+    #sort { display: flex; flex: none; }
+    #sort button {
+      font: inherit;
+      padding: 4px 10px;
+      border: 1px solid var(--line);
       background: var(--bg);
       color: var(--ink);
       cursor: pointer;
-      white-space: nowrap;
     }
-    #filters button[aria-pressed="true"] {
-      background: var(--ink);
-      border-color: var(--ink);
-      color: #fff;
-    }
+    #sort button:first-child { border-radius: 6px 0 0 6px; }
+    #sort button:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
+    #sort button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+    #legend { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--muted); }
+    #legend span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+    .tier-0 { background: var(--tier-0); }
+    .tier-1 { background: var(--tier-1); }
+    .tier-2 { background: var(--tier-2); }
+    [hidden] { display: none !important; }
     #list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
     #list li {
       padding: 10px 16px;
@@ -70,9 +92,17 @@
     #list li.selected { box-shadow: inset 3px 0 var(--accent); }
     .row { display: flex; justify-content: space-between; gap: 12px; }
     .name { font-weight: 600; }
-    .miles { color: var(--muted); font-size: 13px; white-space: nowrap; }
+    .score { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
     .meta, .notes { color: var(--muted); font-size: 13px; }
+    #credit {
+      margin: 0;
+      padding: 6px 16px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
     #map { flex: 1; min-width: 0; }
+    .leaflet-tile-pane { filter: grayscale(0.85); }
     .office-pin {
       width: 16px;
       height: 16px;
@@ -91,10 +121,11 @@
     @media (max-width: 700px) {
       body { flex-direction: column-reverse; height: 100dvh; }
       #panel { width: auto; flex: 1; border-right: 0; border-top: 1px solid var(--line); }
-      #map { flex: none; height: 45dvh; }
-      header { padding: 10px 16px 8px; display: flex; align-items: baseline; gap: 10px; }
+      #map { flex: none; height: 40dvh; }
+      header { padding: 8px 16px 4px; display: flex; align-items: baseline; gap: 10px; }
       h1 { font-size: 18px; }
-      #filters { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 10px; }
+      #controls { grid-template-columns: 1fr 1fr; gap: 8px 12px; padding-bottom: 8px; }
+      #choices, #legend { grid-column: 1 / -1; }
     }
   </style>
 </head>
@@ -104,17 +135,44 @@
       <h1>Lunch</h1>
       <p id="summary"></p>
     </header>
-    <div id="filters"></div>
+    <div id="controls">
+      <label class="slider">
+        <span class="slider-head"><span>Drive time</span><output id="time-value"></output></span>
+        <input id="time" type="range" min="3" max="15" step="1" value="10">
+      </label>
+      <label class="slider" id="quality-control" hidden>
+        <span class="slider-head"><span>Quality</span><output id="quality-value"></output></span>
+        <input id="quality" type="range" min="3.5" max="4.8" step="0.1" value="3.5">
+      </label>
+      <div id="choices">
+        <select id="cuisine" aria-label="Cuisine"></select>
+        <div id="sort" role="group" aria-label="Sort by">
+          <button type="button" data-sort="score">Best</button>
+          <button type="button" data-sort="minutes">Nearest</button>
+        </div>
+      </div>
+      <div id="legend" hidden></div>
+    </div>
     <ul id="list"></ul>
+    <p id="credit"></p>
   </div>
   <div id="map"></div>
 
   <script>
-    const map = L.map('map');
+    // Score at or above each cut moves a place up a tier.
+    const TIER_CUTS = [4.2, 4.5];
+    const TIER_RADIUS = [5, 6.5, 8];
+    const tierColors = [0, 1, 2].map(
+      n => getComputedStyle(document.documentElement).getPropertyValue(`--tier-${n}`).trim());
+
+    const map = L.map('map', { preferCanvas: true });
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map);
+    const pins = L.layerGroup().addTo(map);
+
+    const $ = id => document.getElementById(id);
 
     function el(tag, className, text) {
       const node = document.createElement(tag);
@@ -123,35 +181,61 @@
       return node;
     }
 
-    function miles(a, b) {
-      const rad = d => d * Math.PI / 180;
-      const dp = rad(b.lat - a.lat), dl = rad(b.lon - a.lon);
-      const h = Math.sin(dp / 2) ** 2 +
-        Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dl / 2) ** 2;
-      return 3958.8 * 2 * Math.asin(Math.sqrt(h));
+    function tier(place) {
+      if (place.score === undefined) return 1;
+      return TIER_CUTS.filter(cut => place.score >= cut).length;
+    }
+
+    function minutesText(place) {
+      return `${Math.max(1, Math.round(place.minutes))} min`;
+    }
+
+    function meta(place, suffix = '') {
+      return [place.cuisine, place.price, minutesText(place) + suffix].filter(Boolean).join(' · ');
+    }
+
+    function qualityText(place) {
+      const google = place.rating === undefined ? '' :
+        `Google ${place.rating.toFixed(1)} (${place.reviews.toLocaleString()} reviews)`;
+      if (place.my_rating) return [`Your rating ${place.my_rating.toFixed(1)}`, google].filter(Boolean).join(' · ');
+      return `Estimated quality ${place.score.toFixed(1)} · ${google}`;
     }
 
     function popupFor(place, office) {
       const box = el('div', 'popup');
-      box.append(
-        el('div', 'name', place.name),
-        el('div', 'meta', `${place.cuisine} · ${place.price} · ${place.miles.toFixed(1)} mi`),
-      );
+      box.append(el('div', 'name', place.name), el('div', 'meta', meta(place, ' drive')));
+      if (place.score !== undefined) box.append(el('div', 'meta', qualityText(place)));
       if (place.notes) box.append(el('div', 'notes', place.notes));
       const links = el('div', 'links');
       const directions = el('a', '', 'Directions');
       directions.href = 'https://www.google.com/maps/dir/?api=1' +
         `&origin=${office.lat},${office.lon}` +
-        `&destination=${encodeURIComponent(place.name + ', ' + place.address)}`;
+        `&destination=${encodeURIComponent(place.name + ', ' + place.address)}` +
+        (place.id ? `&destination_place_id=${place.id}` : '');
       links.append(directions);
-      if (place.url) {
-        const site = el('a', '', 'Website');
-        site.href = place.url;
-        links.append(site);
+      for (const [label, href] of [['Google Maps', place.maps], ['Website', place.url]]) {
+        if (!href) continue;
+        const a = el('a', '', label);
+        a.href = href;
+        links.append(a);
       }
       for (const a of links.children) { a.target = '_blank'; a.rel = 'noopener'; }
       box.append(links);
       return box;
+    }
+
+    function rowFor(place) {
+      const row = el('li');
+      const top = el('div', 'row');
+      top.append(el('span', 'name', place.name));
+      if (place.score !== undefined) {
+        const score = el('span', 'score', place.score.toFixed(1));
+        score.prepend(el('span', `dot tier-${tier(place)}`));
+        top.append(score);
+      }
+      row.append(top, el('div', 'meta', meta(place)));
+      if (place.notes) row.append(el('div', 'notes', place.notes));
+      return row;
     }
 
     function select(place) {
@@ -160,67 +244,106 @@
       place.row.scrollIntoView({ block: 'nearest' });
     }
 
-    function render(places, cuisine) {
-      const shown = places.filter(p => !cuisine || p.cuisine === cuisine);
-      const list = document.getElementById('list');
-      list.replaceChildren(...shown.map(p => p.row));
-      for (const p of places) {
-        if (shown.includes(p)) p.marker.addTo(map);
-        else p.marker.remove();
-      }
-      for (const button of document.querySelectorAll('#filters button')) {
-        button.setAttribute('aria-pressed', button.dataset.cuisine === (cuisine || ''));
-      }
-    }
+    fetch('places.json').then(r => r.json()).then(({ office, places, updated }) => {
+      places = places.filter(p => !p.hidden);
+      const hasScores = places.some(p => p.score !== undefined);
+      const state = { cuisine: '', sort: hasScores ? 'score' : 'minutes' };
 
-    fetch('places.json').then(r => r.json()).then(({ office, places }) => {
       L.marker([office.lat, office.lon], {
         icon: L.divIcon({ className: '', html: '<div class="office-pin"></div>', iconSize: [16, 16] }),
         zIndexOffset: 1000,
       }).addTo(map).bindPopup(el('div', 'popup', `${office.name}: ${office.address}`));
 
-      for (const p of places) p.miles = miles(office, p);
-      places.sort((a, b) => a.miles - b.miles);
-
       for (const p of places) {
         p.marker = L.circleMarker([p.lat, p.lon], {
-          radius: 8, color: '#fff', weight: 2, fillColor: '#c2410c', fillOpacity: 0.9,
-        }).bindPopup(popupFor(p, office));
-        p.row = el('li');
+          radius: TIER_RADIUS[tier(p)], color: '#fff', weight: 2,
+          fillColor: tierColors[tier(p)], fillOpacity: 1,
+        }).bindPopup(() => popupFor(p, office));
+        p.row = rowFor(p);
         p.marker.on('popupopen', () => select(p));
         p.marker.on('popupclose', () => p.row.classList.remove('selected'));
-
-        const top = el('div', 'row');
-        top.append(el('span', 'name', p.name), el('span', 'miles', `${p.miles.toFixed(1)} mi`));
-        p.row.append(top, el('div', 'meta', `${p.cuisine} · ${p.price}`));
-        if (p.notes) p.row.append(el('div', 'notes', p.notes));
         p.row.addEventListener('click', () => {
           map.panTo([p.lat, p.lon]);
           p.marker.openPopup();
         });
       }
 
-      const counts = {};
-      for (const p of places) counts[p.cuisine] = (counts[p.cuisine] || 0) + 1;
-      const cuisines = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
-      const filters = document.getElementById('filters');
-      for (const cuisine of ['', ...cuisines]) {
-        const button = el('button', '', cuisine || 'All');
-        button.dataset.cuisine = cuisine;
-        button.addEventListener('click', () => {
-          map.closePopup();
-          render(places, cuisine);
-        });
-        filters.append(button);
+      function visible() {
+        const maxMinutes = Number($('time').value);
+        const quality = $('quality');
+        const minScore = !hasScores || quality.value === quality.min ? null : Number(quality.value);
+        $('time-value').textContent = `within ${maxMinutes} min`;
+        $('quality-value').textContent = minScore === null ? 'any' : `${minScore.toFixed(1)} and up`;
+        return places.filter(p =>
+          p.minutes <= maxMinutes && (minScore === null || p.score >= minScore));
       }
 
-      document.getElementById('summary').textContent =
-        `${places.length} places near ${office.address.split(',')[0]}`;
-      map.fitBounds(
-        L.latLngBounds([[office.lat, office.lon], ...places.map(p => [p.lat, p.lon])]),
-        { padding: [30, 30] },
-      );
-      render(places, '');
+      function render() {
+        const inRange = visible();
+
+        const counts = {};
+        for (const p of inRange) counts[p.cuisine] = (counts[p.cuisine] || 0) + 1;
+        if (state.cuisine && !counts[state.cuisine]) counts[state.cuisine] = 0;
+        const options = Object.keys(counts).sort().map(c => new Option(`${c} (${counts[c]})`, c));
+        $('cuisine').replaceChildren(new Option(`All cuisines (${inRange.length})`, ''), ...options);
+        $('cuisine').value = state.cuisine;
+
+        const shown = inRange.filter(p => !state.cuisine || p.cuisine === state.cuisine);
+        const byTime = (a, b) => a.minutes - b.minutes;
+        const byScore = (a, b) => (b.score ?? 0) - (a.score ?? 0) || byTime(a, b);
+        shown.sort(state.sort === 'score' ? byScore : byTime);
+        $('list').replaceChildren(...shown.map(p => p.row));
+
+        // Best last, so the strongest pins draw on top.
+        pins.clearLayers();
+        for (const p of shown.toSorted((a, b) => byScore(b, a))) pins.addLayer(p.marker);
+
+        for (const button of document.querySelectorAll('#sort button')) {
+          button.setAttribute('aria-pressed', button.dataset.sort === state.sort);
+        }
+        $('summary').textContent = `${shown.length} of ${places.length} places`;
+        return shown;
+      }
+
+      function fit(shown) {
+        map.fitBounds(
+          L.latLngBounds([[office.lat, office.lon], ...shown.map(p => [p.lat, p.lon])]),
+          { padding: [30, 30], maxZoom: 15 },
+        );
+      }
+
+      $('time').addEventListener('input', render);
+      $('time').addEventListener('change', () => fit(render()));
+      $('quality').addEventListener('input', render);
+      $('cuisine').addEventListener('change', event => {
+        state.cuisine = event.target.value;
+        render();
+      });
+      for (const button of document.querySelectorAll('#sort button')) {
+        button.addEventListener('click', () => {
+          state.sort = button.dataset.sort;
+          render();
+          $('list').scrollTop = 0;
+        });
+      }
+
+      if (hasScores) {
+        $('quality-control').hidden = false;
+        const labels = [`under ${TIER_CUTS[0]}`, `${TIER_CUTS[0]} to ${TIER_CUTS[1]}`, `${TIER_CUTS[1]} and up`];
+        $('legend').append(...labels.map((label, n) => {
+          const item = el('span', '', label);
+          item.prepend(el('span', `dot tier-${n}`));
+          return item;
+        }));
+        $('legend').hidden = false;
+      } else {
+        $('sort').hidden = true;
+      }
+      $('credit').textContent =
+        (hasScores ? `Ratings from Google Maps${updated ? `, ${updated}` : ''}. ` : '') +
+        'Drive times from OSRM, without traffic.';
+
+      fit(render());
     });
   </script>
 </body>
