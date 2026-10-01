@@ -147,7 +147,8 @@
         <input id="quality" type="range" min="3.8" max="4.7" step="0.1" value="3.8">
       </label>
       <div id="choices">
-        <select id="cuisine" aria-label="Cuisine"></select>
+        <select id="group" aria-label="Cuisine group"></select>
+        <select id="cuisine" aria-label="Cuisine" hidden></select>
       </div>
       <div id="order">
         <select id="visits" aria-label="Visited">
@@ -262,17 +263,30 @@
       return row;
     }
 
+    // One option per distinct key, most common first and "Other" last.
+    function fill(select, places, key, selected, allLabel) {
+      const counts = {};
+      for (const p of places) counts[key(p)] = (counts[key(p)] || 0) + 1;
+      if (selected && !counts[selected]) counts[selected] = 0;
+      const names = Object.keys(counts).sort((a, b) =>
+        (a === 'Other') - (b === 'Other') || counts[b] - counts[a] || a.localeCompare(b));
+      select.replaceChildren(
+        new Option(allLabel, ''), ...names.map(name => new Option(`${name} (${counts[name]})`, name)));
+      select.value = selected;
+    }
+
     function select(place) {
       document.querySelectorAll('#list li.selected').forEach(li => li.classList.remove('selected'));
       place.row.classList.add('selected');
       place.row.scrollIntoView({ block: 'nearest' });
     }
 
-    fetch('places.json').then(r => r.json()).then(({ office, places, updated, tier_cuts }) => {
+    fetch('places.json').then(r => r.json()).then(({ office, places, updated, tier_cuts, cuisine_groups = {} }) => {
       if (tier_cuts) tierCuts = tier_cuts;
       places = places.filter(p => !p.hidden);
+      for (const p of places) p.group = cuisine_groups[p.cuisine] ?? 'Other';
       const hasScores = places.some(p => p.score !== undefined);
-      const state = { cuisine: '', visits: '', sort: hasScores ? 'score' : 'minutes' };
+      const state = { group: '', cuisine: '', visits: '', sort: hasScores ? 'score' : 'minutes' };
 
       L.marker([office.lat, office.lon], {
         icon: L.divIcon({ className: '', html: '<div class="office-pin"></div>', iconSize: [16, 16] }),
@@ -307,14 +321,14 @@
       function render() {
         const inRange = visible();
 
-        const counts = {};
-        for (const p of inRange) counts[p.cuisine] = (counts[p.cuisine] || 0) + 1;
-        if (state.cuisine && !counts[state.cuisine]) counts[state.cuisine] = 0;
-        const options = Object.keys(counts).sort().map(c => new Option(`${c} (${counts[c]})`, c));
-        $('cuisine').replaceChildren(new Option(`All cuisines (${inRange.length})`, ''), ...options);
-        $('cuisine').value = state.cuisine;
+        // The second dropdown drills into the chosen group, when there is more
+        // than one cuisine in it to choose from.
+        const inGroup = inRange.filter(p => !state.group || p.group === state.group);
+        fill($('group'), inRange, p => p.group, state.group, `All cuisines (${inRange.length})`);
+        fill($('cuisine'), inGroup, p => p.cuisine, state.cuisine, `All ${state.group} (${inGroup.length})`);
+        $('cuisine').hidden = !state.group || state.group === 'Other' || $('cuisine').options.length < 3;
 
-        const shown = inRange.filter(p => !state.cuisine || p.cuisine === state.cuisine);
+        const shown = inGroup.filter(p => !state.cuisine || p.cuisine === state.cuisine);
         const byTime = (a, b) => a.minutes - b.minutes;
         const byScore = (a, b) => (b.score ?? 0) - (a.score ?? 0) || byTime(a, b);
         shown.sort(state.sort === 'score' ? byScore : byTime);
@@ -341,6 +355,11 @@
       $('time').addEventListener('input', render);
       $('time').addEventListener('change', () => fit(render()));
       $('quality').addEventListener('input', render);
+      $('group').addEventListener('change', event => {
+        state.group = event.target.value;
+        state.cuisine = '';
+        render();
+      });
       $('cuisine').addEventListener('change', event => {
         state.cuisine = event.target.value;
         render();
