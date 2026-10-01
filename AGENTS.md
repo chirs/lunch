@@ -37,8 +37,9 @@ A full run does five things:
    Google says serve lunch. Icehouses and sports bars often lack the
    "restaurant" type and the first pass misses them. Asking for `servesLunch`
    bills as a different SKU with its own 1,000 free calls.
-3. Drops places that are closed, are inside DFW Airport (zip 75261, mostly
-   past security), are not really restaurants (Google tags gas
+3. Drops places that are closed, are inside an airport (DFW's zip 75261 and
+   the Love Field terminal's addresses; see `AIRPORTS`), are not really
+   restaurants (Google tags gas
    stations and smoothie shops as restaurants; see `LUNCH_TYPES`), have under
    20 reviews, are not open at noon on any weekday, or match the fast-food
    list in `CHAINS`.
@@ -79,9 +80,20 @@ takes an explicit list of circles when a hex grid around one point is not the
 right shape.
 
 Each place's `cuisine` comes from Google's primary type (`CUISINES` renames
-and merges a few). `GROUPS` sorts the cuisines into the groups of the site's
-cuisine checklist. A cuisine in no group shows under Other, and a run prints
-any it finds.
+and merges a few). Google calls about a quarter of places just "restaurant",
+so `cuisine()` falls back, in order of trust, to a telling word in the name
+(`NAME_HINTS`), then the place's other Google types, then Fast Food. Name
+before types is deliberate: the type lists are not in order of relevance and
+put Whataburger under Chicken and a pupuseria under Bar & Grill. About 100
+places (5%) still end up as Other; they have no cuisine type and names like
+"Hudson House".
+
+A full fetch now asks for `types`. The saved results from 2026-10-01 predate
+that, so the places that needed it were backfilled one at a time through Place
+Details (field mask `types`, the Essentials tier, 10,000 free a month).
+
+`GROUPS` sorts the cuisines into the groups of the site's cuisine checklist. A
+cuisine in no group shows under Other, and a run prints any it finds.
 
 `hours` is seven strings, Sunday first, such as `1100-1400,1700-2200`; a range
 that runs past midnight stays on the day it opens. `places.json` holds one
