@@ -17,6 +17,7 @@ open work.
 ```bash
 ./update.py            # full refresh; needs GOOGLE_MAPS_API_KEY in .env
 ./update.py --cached   # no Google calls; re-filters the saved results
+./update.py --near 32.9368,-97.0784,1.5   # top up: search 1.5 miles around a point
 .venv/bin/python -m pytest
 ```
 
@@ -36,7 +37,8 @@ A full run does five things:
    Google says serve lunch. Icehouses and sports bars often lack the
    "restaurant" type and the first pass misses them. Asking for `servesLunch`
    bills as a different SKU with its own 1,000 free calls.
-3. Drops places that are closed, are not really restaurants (Google tags gas
+3. Drops places that are closed, are inside DFW Airport (zip 75261, mostly
+   past security), are not really restaurants (Google tags gas
    stations and smoothie shops as restaurants; see `LUNCH_TYPES`), have under
    20 reviews, are not open at noon on any weekday, or match the fast-food
    list in `CHAINS`.
@@ -51,7 +53,13 @@ Both passes hit their caps on the first run (2026-10-01), so the densest spots
 are missing their less popular places. Bachman Tacos & Grill is a known miss.
 That run also searched only 8 miles out, before the limit went from 15 to 20
 minutes. The 20-minute reach is 9 to 12 miles along the freeways, so beyond 8
-miles the list holds only what spilled over from the edge cells.
+miles the list holds only what spilled over from the edge cells, plus downtown
+Grapevine (16 to 18 minutes away), which was topped up with `--near` on
+2026-10-01 because it was wanted and entirely missing.
+
+`--near` is the cheap way to fill a known hole: it searches a small circle,
+adds the results to `google_raw.json`, and reruns the rest. The Grapevine
+top-up took 77 restaurant calls and 14 bar calls.
 
 Each place's `cuisine` comes from Google's primary type (`CUISINES` renames
 and merges a few). `GROUPS` sorts the cuisines into the groups of the site's
