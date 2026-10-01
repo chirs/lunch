@@ -265,9 +265,11 @@ h1::before { content: ""; width: 9px; height: 9px; border-radius: 50%; backgroun
 #list li { padding: 12px var(--gutter); border-bottom: 1px solid var(--line); cursor: pointer; }
 #list li:hover { background: var(--surface); }
 #list li.selected { background: var(--accent-soft); box-shadow: inset 2px 0 var(--accent); }
-.row { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+.row { display: flex; justify-content: space-between; gap: 16px; }
+.row-main { min-width: 0; }
+.row-side { flex: none; text-align: right; white-space: nowrap; }
 .name { font-weight: 600; }
-.score { display: inline-flex; align-items: center; gap: 7px; font: 500 14px var(--mono); }
+.score { display: flex; align-items: center; justify-content: flex-end; gap: 7px; font: 500 14px/1.45 var(--mono); }
 .meta, .notes { color: var(--muted); font-size: 13px; }
 .visited-line { font-size: 13px; }
 

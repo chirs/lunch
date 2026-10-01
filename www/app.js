@@ -214,13 +214,17 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
   function rowFor(place) {
     const row = el('li');
     row.tabIndex = 0;
-    const top = el('div', 'row');
-    const score = el('span', 'score', place.score.toFixed(1));
+    // Left: what it is. Right: the numbers, with price and drive under the score.
+    const main = el('div', 'row-main'), side = el('div', 'row-side');
+    main.append(el('div', 'name', place.name), el('div', 'meta', place.cuisine));
+    if (place.visited) main.append(el('div', 'visited-line', visitedText(place)));
+    if (place.notes) main.append(el('div', 'notes', place.notes));
+    const score = el('div', 'score', place.score.toFixed(1));
     score.prepend(el('span', `dot tier-${tier(place)}`));
-    top.append(el('span', 'name', place.name), score);
-    row.append(top, el('div', 'meta', meta(place)));
-    if (place.visited) row.append(el('div', 'visited-line', visitedText(place)));
-    if (place.notes) row.append(el('div', 'notes', place.notes));
+    side.append(score, el('div', 'meta', [place.price, minutesText(place)].filter(Boolean).join(' · ')));
+    const columns = el('div', 'row');
+    columns.append(main, side);
+    row.append(columns);
     return row;
   }
 
