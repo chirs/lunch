@@ -147,7 +147,9 @@ def test_is_chain(name, expected):
     [
         ({}, None),
         ({"businessStatus": "CLOSED_PERMANENTLY"}, "closed"),
-        ({"formattedAddress": "2400 Aviation Dr, DFW Airport, TX 75261, USA"}, "inside DFW Airport"),
+        ({"formattedAddress": "2400 Aviation Dr, DFW Airport, TX 75261, USA"}, "inside an airport"),
+        ({"formattedAddress": "8008 Herb Kelleher Way, Dallas, TX 75235, USA"}, "inside an airport"),
+        ({"formattedAddress": "8091 Cedar Springs Rd, Dallas, TX 75235, USA"}, None),
         ({"primaryType": "convenience_store"}, "not a restaurant"),
         ({"primaryType": None}, "not a restaurant"),
         ({"primaryType": "sports_bar"}, None),
@@ -177,6 +179,62 @@ def test_drop_reason(overrides, expected):
 )
 def test_cuisine(primary_type, expected):
     assert cuisine(primary_type) == expected
+
+
+@pytest.mark.parametrize(
+    "primary_type, types, expected",
+    [
+        # A vague primary type gives way to the first firm cuisine listed.
+        ("restaurant", ["restaurant", "mexican_restaurant", "food", "point_of_interest"], "Mexican"),
+        ("fast_food_restaurant", ["fast_food_restaurant", "hamburger_restaurant"], "Burgers"),
+        # "bar" and "american" are on everything, so a firm cuisine beats them
+        # wherever it sits in the list. They still beat nothing.
+        ("restaurant", ["bar", "american_restaurant", "seafood_restaurant", "restaurant"], "Seafood"),
+        ("restaurant", ["bar", "restaurant"], "Bar & Grill"),
+        # Fast Food still beats Other when nothing better is listed.
+        ("restaurant", ["fast_food_restaurant", "restaurant", "food"], "Fast Food"),
+        ("fast_food_restaurant", ["restaurant", "food"], "Fast Food"),
+        # Types that are not about food are ignored.
+        ("restaurant", ["restaurant", "food", "store", "establishment"], "Other"),
+        # A specific primary type is never overridden.
+        ("korean_restaurant", ["mexican_restaurant", "korean_restaurant"], "Korean"),
+    ],
+)
+def test_cuisine_falls_back_to_other_types(primary_type, types, expected):
+    assert cuisine(primary_type, types) == expected
+
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        ("Pupuseria Y Antojitos", "Latin American"),
+        ("El Olanchano restaurante hondureño", "Latin American"),
+        ("La Campiña Salvadoreña", "Latin American"),
+        ("El Amigo Taqueria (Maple)", "Mexican"),
+        ("Sophia's Cocina Y Cantina", "Mexican"),
+        ("Roland's Jamaica Chicken", "Caribbean"),
+        ("WING CASTLE", "Chicken"),
+        ("Kabab Kurry N More", "Indian"),
+        ("Pho MC", "Vietnamese"),
+        ("Big Tony's Hot Cheese Steak & Wings", "Sandwiches"),
+        ("JW Steakhouse", "Steakhouse"),
+        ("Sweet Paris Crêperie & Café", "Breakfast"),
+        ("Hudson House", "Other"),
+        ("Phoenix Room", "Other"),  # "pho" only counts as a whole word
+    ],
+)
+def test_cuisine_falls_back_to_the_name(name, expected):
+    assert cuisine("restaurant", ["restaurant", "food"], name) == expected
+
+
+def test_the_name_beats_a_listed_type():
+    # Both of these came out wrong when the type list was trusted first.
+    assert cuisine("restaurant", ["bar", "restaurant"], "El Peñon Restaurante Salvadoreño") == "Latin American"
+    assert cuisine("fast_food_restaurant", ["chicken_restaurant", "hamburger_restaurant"], "Whataburger") == "Burgers"
+
+
+def test_the_name_beats_fast_food():
+    assert cuisine("fast_food_restaurant", ["fast_food_restaurant"], "Laredo Taco Company") == "Mexican"
 
 
 def test_each_cuisine_is_in_one_group():

@@ -23,6 +23,7 @@ import re
 import statistics
 import sys
 import time
+import unicodedata
 import urllib.request
 from collections import Counter, deque
 from pathlib import Path
@@ -58,6 +59,7 @@ FIELD_MASK = ",".join(
         "location",
         "formattedAddress",
         "primaryType",
+        "types",
         "businessStatus",
         "rating",
         "userRatingCount",
@@ -73,8 +75,14 @@ PRICES = {
     "PRICE_LEVEL_EXPENSIVE": "$$$",
     "PRICE_LEVEL_VERY_EXPENSIVE": "$$$$",
 }
-# Everything at this zip is inside DFW Airport, mostly past security.
-AIRPORT_ZIP = " 75261"
+# Addresses inside an airport, mostly past security: DFW's own zip code, and
+# the Love Field terminal's two street addresses.
+AIRPORTS = (" 75261", "8008 Herb Kelleher Way", "8008 Cedar Springs Rd")
+# Cuisine names too vague to prefer over anything more specific.
+VAGUE_CUISINES = {"Other", "Fast Food"}
+# Labels Google attaches to all sorts of places as a secondary type. They only
+# count as a place's cuisine when nothing firmer is on offer.
+SOFT_CUISINES = {"American", "Bar & Grill", "Breakfast", "Cafe"}
 # National fast food and delivery pizza. Matched against the start of the name.
 CHAINS = (
     "arbys",
@@ -140,6 +148,7 @@ CUISINES = {
     "korean_barbecue_restaurant": "Korean",
     "chicken_wings_restaurant": "Chicken",
     "south_indian_restaurant": "Indian",
+    "north_indian_restaurant": "Indian",
     "hot_pot_restaurant": "Chinese",
     "dim_sum_restaurant": "Chinese",
     "noodle_shop": "Asian",
@@ -150,8 +159,46 @@ CUISINES = {
     "breakfast_restaurant": "Breakfast",
     "brunch_restaurant": "Breakfast",
     "yakiniku_restaurant": "Japanese",
+    "burrito_restaurant": "Mexican",
+    "hot_dog_restaurant": "Hot Dogs",
     **dict.fromkeys(BAR_TYPES, "Bar & Grill"),
 }
+# Last resort for a place Google gives no cuisine type at all: words in its
+# name. Checked in order against the name in lower case without accents, so
+# the more telling words come first ("Pollo" loses to "Pupuseria").
+NAME_HINTS = (
+    (r"pupus|salvador|hondur|catrach|guatemal|nicarag|colombian|llanero|latin[oa]\b", "Latin American"),
+    (r"taqueria|\btacos?\b|\btortas?\b|torteria|tortilleria|mexican|elotes|antojitos", "Mexican"),
+    (r"michoacan|cantina|cocina|fruteria|\bfruta", "Mexican"),
+    (r"pizza", "Pizza"),
+    (r"italian|trattoria", "Italian"),
+    (r"sushi|ramen|bento", "Japanese"),
+    (r"\bpho\b|banh", "Vietnamese"),
+    (r"thai|\blao\b", "Thai"),
+    (r"korean", "Korean"),
+    (r"chinese|dumpling|szechuan", "Chinese"),
+    (r"asian", "Asian"),
+    (r"nepal|himalaya|kathmandu|thakali|sekuwa|\bmomo", "Nepalese"),
+    (r"indian|\bdesi\b|kurry|masala|tiffin|paratha|biryani", "Indian"),
+    (r"halal", "Halal"),
+    (r"mediterranean|gyro|kabob|kabab", "Mediterranean"),
+    (r"jamaica|caribbean", "Caribbean"),
+    (r"suya|habesha|lagos|ethiopia|nigeria|african", "African"),
+    (r"cajun|kajun", "Cajun"),
+    (r"soul food", "Soul Food"),
+    (r"cheese ?steak|philly", "Sandwiches"),
+    (r"steak", "Steakhouse"),
+    (r"bbq|brisket|smokehouse|barbecue", "Barbecue"),
+    (r"seafood|oyster|\bcrab\b|shrimp|mariscos", "Seafood"),
+    (r"chicken|\bwings?\b|\bpollos?\b", "Chicken"),
+    (r"burger", "Burgers"),
+    (r"\bdeli\b|sandwich", "Sandwiches"),
+    (r"\bdiner\b", "Diner"),
+    (r"sports bar", "Bar & Grill"),
+    (r"brunch|toast|creperie|waffle", "Breakfast"),
+    (r"\bcafe\b|caffe|bakery|panaderia", "Cafe"),
+    (r"american", "American"),
+)
 
 
 def haversine_miles(lat1, lon1, lat2, lon2):
@@ -300,8 +347,8 @@ def is_chain(name):
 def drop_reason(place, office):
     if place.get("businessStatus", "OPERATIONAL") != "OPERATIONAL":
         return "closed"
-    if AIRPORT_ZIP in place.get("formattedAddress", ""):
-        return "inside DFW Airport"
+    if any(address in place.get("formattedAddress", "") for address in AIRPORTS):
+        return "inside an airport"
     primary_type = place.get("primaryType") or ""
     if not primary_type.endswith("_restaurant") and primary_type not in LUNCH_TYPES:
         return "not a restaurant"
@@ -332,30 +379,65 @@ GROUPS = {
         "Caribbean",
     ],
     "American": ["American", "Barbecue", "Steakhouse", "Breakfast", "Diner", "Cajun", "Soul Food", "Hawaiian"],
-    "Burgers & Sandwiches": ["Burgers", "Chicken", "Sandwiches", "Fast Food", "Cafe", "Salads"],
+    "Burgers & Sandwiches": ["Burgers", "Chicken", "Sandwiches", "Fast Food", "Cafe", "Salads", "Hot Dogs"],
     "Bar & Grill": ["Bar & Grill"],
-    "Asian": ["Japanese", "Korean", "Chinese", "Thai", "Vietnamese", "Asian", "Indonesian", "Filipino"],
-    "South Asian": ["Indian", "Pakistani", "Bangladeshi", "Sri Lankan"],
+    "Asian": [
+        "Japanese",
+        "Korean",
+        "Chinese",
+        "Thai",
+        "Vietnamese",
+        "Asian",
+        "Indonesian",
+        "Filipino",
+        "Malaysian",
+    ],
+    "South Asian": ["Indian", "Pakistani", "Bangladeshi", "Sri Lankan", "Nepalese", "Tibetan"],
     "Italian & European": ["Pizza", "Italian", "French", "Irish", "German", "Spanish", "Tapas", "European", "Bistro"],
-    "Mediterranean": ["Mediterranean", "Middle Eastern", "Greek", "Halal", "Persian", "Turkish"],
+    "Mediterranean": ["Mediterranean", "Middle Eastern", "Greek", "Halal", "Persian", "Turkish", "Lebanese"],
     "Seafood": ["Seafood"],
     "African": ["African", "Ethiopian"],
-    "Other": ["Other", "Buffet", "Vegetarian", "Vegan", "Dessert"],
+    "Other": ["Other", "Buffet", "Vegetarian", "Vegan", "Dessert", "Soup", "Australian"],
 }
 CUISINE_GROUPS = {cuisine: group for group, cuisines in GROUPS.items() for cuisine in cuisines}
 
 
-def cuisine(primary_type):
-    if primary_type in CUISINES:
-        return CUISINES[primary_type]
-    return primary_type.removesuffix("_restaurant").replace("_", " ").title()
+def cuisine_name(place_type):
+    if place_type in CUISINES:
+        return CUISINES[place_type]
+    return place_type.removesuffix("_restaurant").replace("_", " ").title()
+
+
+def name_hint(name):
+    plain = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode().lower()
+    return next((hint for pattern, hint in NAME_HINTS if re.search(pattern, plain)), None)
+
+
+def cuisine(primary_type, types=(), name=""):
+    """The cuisine for Google's primary type, falling back when that is vague.
+
+    Google calls a quarter of places just "restaurant". In order of trust, the
+    fallbacks are: a telling word in the name; a firm cuisine among the
+    place's other types; a soft one (those lists are not in order of
+    relevance, and "bar" or "american" turn up on everything); Fast Food.
+    """
+    primary = cuisine_name(primary_type)
+    if primary not in VAGUE_CUISINES:
+        return primary
+    extras = [
+        cuisine_name(t) for t in types if t.endswith("_restaurant") or t in CUISINES or t in LUNCH_TYPES
+    ]
+    firm = next((e for e in extras if e not in VAGUE_CUISINES | SOFT_CUISINES), None)
+    soft = next((e for e in extras if e in SOFT_CUISINES), None)
+    vague = next((e for e in [primary, *extras] if e != "Other"), "Other")
+    return name_hint(name) or firm or soft or vague
 
 
 def to_record(place):
     record = {
         "id": place["id"],
         "name": place["displayName"]["text"],
-        "cuisine": cuisine(place["primaryType"]),
+        "cuisine": cuisine(place["primaryType"], place.get("types", ()), place["displayName"]["text"]),
         "address": place["formattedAddress"].removesuffix(", USA"),
         "lat": round(place["location"]["latitude"], 6),
         "lon": round(place["location"]["longitude"], 6),
