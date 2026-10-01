@@ -370,6 +370,8 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .leaflet-control-attribution a { color: var(--ink) !important; }
 .leaflet-tooltip { color: var(--ink); background: var(--surface); border-color: var(--line); box-shadow: none; }
 .leaflet-tooltip::before { display: none; }
+.pin-tip { padding: 6px 10px; border-radius: 4px; font-size: 13px; line-height: 1.35; }
+.pin-tip .meta { font-size: 12px; }
 .office-pin {
   width: 18px;
   height: 18px;

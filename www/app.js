@@ -233,6 +233,11 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
       radius: TIER_RADIUS[tier(p)], color: theme(p.visited ? '--pin-visited' : '--pin-ring'), weight: 2,
       fillColor: tierColors[tier(p)], fillOpacity: 1,
     });
+    p.marker.bindTooltip(() => {
+      const tip = el('div');
+      tip.append(el('div', 'name', p.name), el('div', 'meta', `${meta(p)} · ${p.score.toFixed(1)}`));
+      return tip;
+    }, { direction: 'top', offset: [0, -TIER_RADIUS[tier(p)] - 2], className: 'pin-tip' });
     p.row = rowFor(p);
     markStar(p);
     p.marker.on('click', () => openCard(p));
