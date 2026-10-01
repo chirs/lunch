@@ -7,69 +7,15 @@
   },
   "places": [
     {
-      "name": "Longhorn Icehouse",
-      "cuisine": "American",
-      "address": "1901 W Northwest Hwy, Dallas, TX 75220",
-      "lat": 32.86945,
-      "lon": -96.912635,
-      "price": "$$",
-      "notes": "Next door. Burgers, wings, chicken fried steak. Opens at 11.",
-      "url": "https://www.longhornicehouse.com"
-    },
-    {
-      "name": "Pappasito's Cantina",
+      "name": "Bachman Tacos & Grill",
       "cuisine": "Mexican",
-      "address": "10433 Lombardy Ln, Dallas, TX 75220",
-      "lat": 32.865937,
-      "lon": -96.898318,
-      "price": "$$",
-      "notes": "Tex-Mex, fajitas.",
-      "url": "https://pappasitos.com/location/northwest-hwy-at-i-35"
-    },
-    {
-      "name": "Pappadeaux Seafood Kitchen",
-      "cuisine": "Seafood",
-      "address": "10428 Lombardy Ln, Dallas, TX 75220",
-      "lat": 32.866057,
-      "lon": -96.896915,
-      "price": "$$$",
-      "notes": "Cajun seafood."
-    },
-    {
-      "name": "Pappas Bar-B-Q",
-      "cuisine": "Barbecue",
-      "address": "2231 W Northwest Hwy, Dallas, TX 75220",
-      "lat": 32.864221,
-      "lon": -96.897495,
-      "price": "$$",
-      "notes": "Counter service."
-    },
-    {
-      "name": "King Buffet",
-      "cuisine": "Chinese",
-      "address": "10250 Technology Blvd W, Dallas, TX 75220",
-      "lat": 32.862331,
-      "lon": -96.900262,
+      "address": "3311 W Northwest Hwy, Dallas, TX 75220",
       "price": "$",
-      "notes": "Buffet. Opens at 11."
-    },
-    {
-      "name": "Raising Cane's",
-      "cuisine": "Chicken",
-      "address": "2255 W Northwest Hwy, Dallas, TX 75220",
-      "lat": 32.863493,
-      "lon": -96.895446,
-      "price": "$",
-      "notes": "Chicken fingers."
-    },
-    {
-      "name": "Olive Garden",
-      "cuisine": "Italian",
-      "address": "10280 Technology Blvd E, Dallas, TX 75220",
-      "lat": 32.862552,
-      "lon": -96.895892,
-      "price": "$$",
-      "notes": ""
+      "notes": "Street tacos and tortas. Open 24 hours.",
+      "url": "https://bachmantacosandgrill.com/",
+      "lat": 32.856493,
+      "lon": -96.863529,
+      "minutes": 7.9
     },
     {
       "name": "Chili's",
@@ -78,183 +24,18 @@
       "lat": 32.862287,
       "lon": -96.89514,
       "price": "$$",
-      "notes": ""
+      "notes": "",
+      "minutes": 3.7
     },
     {
-      "name": "Luna's Tortillas",
+      "name": "Chipotle",
       "cuisine": "Mexican",
-      "address": "2225 Connector Dr, Dallas, TX 75220",
-      "lat": 32.85975,
-      "lon": -96.895755,
+      "address": "118 E John Carpenter Fwy, Irving, TX 75062",
+      "lat": 32.865795,
+      "lon": -96.943661,
       "price": "$",
-      "notes": "Tortilla factory with a restaurant."
-    },
-    {
-      "name": "Ojos Locos Sports Cantina",
-      "cuisine": "Mexican",
-      "address": "10230 Technology Blvd E, Dallas, TX 75220",
-      "lat": 32.860906,
-      "lon": -96.894034,
-      "price": "$$",
-      "notes": "Sports bar."
-    },
-    {
-      "name": "Jason's Deli",
-      "cuisine": "Sandwiches",
-      "address": "10220 Technology Blvd E, Dallas, TX 75220",
-      "lat": 32.860607,
-      "lon": -96.893719,
-      "price": "$",
-      "notes": "Sandwiches, salad bar."
-    },
-    {
-      "name": "Keller's Hamburgers",
-      "cuisine": "Burgers",
-      "address": "10226 Harry Hines Blvd, Dallas, TX 75220",
-      "lat": 32.868965,
-      "lon": -96.882016,
-      "price": "$",
-      "notes": "Drive-in."
-    },
-    {
-      "name": "El Paisa",
-      "cuisine": "Mexican",
-      "address": "10091 Harry Hines Blvd, Dallas, TX 75220",
-      "lat": 32.860249,
-      "lon": -96.881297,
-      "price": "$",
-      "notes": ""
-    },
-    {
-      "name": "Gorditas",
-      "cuisine": "Mexican",
-      "address": "10065 Harry Hines Blvd, Dallas, TX 75220",
-      "lat": 32.859941,
-      "lon": -96.881385,
-      "price": "$",
-      "notes": ""
-    },
-    {
-      "name": "Taqueria El Paisano",
-      "cuisine": "Mexican",
-      "address": "2911 Lombardy Ln, Dallas, TX 75220",
-      "lat": 32.866712,
-      "lon": -96.876377,
-      "price": "$",
-      "notes": ""
-    },
-    {
-      "name": "Tipico's",
-      "cuisine": "Mexican",
-      "address": "3118 W Northwest Hwy, Dallas, TX 75220",
-      "lat": 32.854747,
-      "lon": -96.867538,
-      "price": "$",
-      "notes": ""
-    },
-    {
-      "name": "Bachman Tacos & Grill",
-      "cuisine": "Mexican",
-      "address": "3311 W Northwest Hwy, Dallas, TX 75220",
-      "price": "$",
-      "notes": "Street tacos and tortas. Open 24 hours.",
-      "url": "https://bachmantacosandgrill.com/",
-      "lat": 32.856493,
-      "lon": -96.863529
-    },
-    {
-      "name": "Whataburger",
-      "cuisine": "Burgers",
-      "address": "2955 Walnut Hill Ln, Dallas, TX 75229",
-      "lat": 32.881352,
-      "lon": -96.878716,
-      "price": "$",
-      "notes": ""
-    },
-    {
-      "name": "Hong Dumpling House",
-      "cuisine": "Korean",
-      "address": "1901 Royal Ln #105, Dallas, TX 75229",
-      "lat": 32.896076,
-      "lon": -96.913811,
-      "price": "$$",
-      "notes": "Dumplings.",
-      "url": "https://www.hongdumplinghouse.com/"
-    },
-    {
-      "name": "No. 1 Plus Chicken",
-      "cuisine": "Korean",
-      "address": "2240 Royal Ln #103, Dallas, TX 75229",
-      "lat": 32.894994,
-      "lon": -96.902865,
-      "price": "$$",
-      "notes": "Korean fried chicken. Opens at 11:30."
-    },
-    {
-      "name": "Seoul Garden",
-      "cuisine": "Korean",
-      "address": "2502 Royal Ln, Dallas, TX 75229",
-      "lat": 32.895497,
-      "lon": -96.895566,
-      "price": "$$",
-      "notes": "Korean barbecue, lunch specials.",
-      "url": "http://www.dallasseoulgarden.com/"
-    },
-    {
-      "name": "Koryo Korean BBQ",
-      "cuisine": "Korean",
-      "address": "2560 Royal Ln #105, Dallas, TX 75229",
-      "lat": 32.89561,
-      "lon": -96.893168,
-      "price": "$$",
-      "notes": "Known for its banchan.",
-      "url": "https://www.eatkoryo.com"
-    },
-    {
-      "name": "Korea House",
-      "cuisine": "Korean",
-      "address": "2598 Royal Ln, Dallas, TX 75229",
-      "price": "$$",
-      "notes": "Korean barbecue and sushi. Open since 1979.",
-      "lat": 32.895527,
-      "lon": -96.891588
-    },
-    {
-      "name": "Mama's Daughters' Diner",
-      "cuisine": "American",
-      "address": "2610 Royal Ln, Dallas, TX 75229",
-      "lat": 32.895012,
-      "lon": -96.890279,
-      "price": "$",
-      "notes": "Southern diner."
-    },
-    {
-      "name": "Italian Cafe",
-      "cuisine": "Italian",
-      "address": "387 E Las Colinas Blvd, Irving, TX 75039",
-      "lat": 32.865135,
-      "lon": -96.936539,
-      "price": "$$",
-      "notes": "Pasta and New York style pizza. Patio.",
-      "url": "https://www.italianitaliancafe.com/"
-    },
-    {
-      "name": "Go Fish Poke",
-      "cuisine": "Poke",
-      "address": "5244 N O'Connor Blvd #154, Irving, TX 75039",
-      "lat": 32.869543,
-      "lon": -96.938061,
-      "price": "$$",
-      "notes": "Poke bowls. Water Street."
-    },
-    {
-      "name": "Monaco",
-      "cuisine": "Italian",
-      "address": "5238 N O'Connor Blvd, Irving, TX 75039",
-      "lat": 32.86909,
-      "lon": -96.938623,
-      "price": "$$$",
-      "notes": "Upscale, on the water."
+      "notes": "",
+      "minutes": 7.0
     },
     {
       "name": "Cork & Pig Tavern",
@@ -264,53 +45,18 @@
       "lon": -96.939065,
       "price": "$$",
       "notes": "Wood-fired pizzas, sandwiches, salads.",
-      "url": "https://www.corkandpig.com/las-colinas/"
+      "url": "https://www.corkandpig.com/las-colinas/",
+      "minutes": 5.6
     },
     {
-      "name": "Zeytin Mediterranean Grill",
-      "cuisine": "Mediterranean",
-      "address": "114 E John Carpenter Fwy, Irving, TX 75062",
-      "lat": 32.866045,
-      "lon": -96.944679,
-      "price": "$$",
-      "notes": "Turkish. Weekday lunch buffet."
-    },
-    {
-      "name": "Chipotle",
+      "name": "El Paisa",
       "cuisine": "Mexican",
-      "address": "118 E John Carpenter Fwy, Irving, TX 75062",
-      "lat": 32.865795,
-      "lon": -96.943661,
+      "address": "10091 Harry Hines Blvd, Dallas, TX 75220",
+      "lat": 32.860249,
+      "lon": -96.881297,
       "price": "$",
-      "notes": ""
-    },
-    {
-      "name": "Two Mules Cantina",
-      "cuisine": "Mexican",
-      "address": "501 W Las Colinas Blvd, Irving, TX 75039",
-      "lat": 32.877074,
-      "lon": -96.941933,
-      "price": "$$",
-      "notes": "Tex-Mex at the Texican Court hotel. Lunch weekdays 11 to 4.",
-      "url": "https://www.twomulescantina.com/"
-    },
-    {
-      "name": "Thirsty Lion Gastropub",
-      "cuisine": "American",
-      "address": "350 W Las Colinas Blvd, Irving, TX 75039",
-      "lat": 32.875396,
-      "lon": -96.94394,
-      "price": "$$",
-      "notes": "Toyota Music Factory."
-    },
-    {
-      "name": "Yard House",
-      "cuisine": "American",
-      "address": "320 W Las Colinas Blvd, Irving, TX 75039",
-      "lat": 32.874491,
-      "lon": -96.944128,
-      "price": "$$",
-      "notes": "Toyota Music Factory."
+      "notes": "",
+      "minutes": 6.3
     },
     {
       "name": "Gloria's Latin Cuisine",
@@ -319,7 +65,224 @@
       "lat": 32.874733,
       "lon": -96.944216,
       "price": "$$",
-      "notes": "Salvadoran and Tex-Mex. Toyota Music Factory."
+      "notes": "Salvadoran and Tex-Mex. Toyota Music Factory.",
+      "minutes": 6.3
+    },
+    {
+      "name": "Go Fish Poke",
+      "cuisine": "Poke",
+      "address": "5244 N O'Connor Blvd #154, Irving, TX 75039",
+      "lat": 32.869543,
+      "lon": -96.938061,
+      "price": "$$",
+      "notes": "Poke bowls. Water Street.",
+      "minutes": 5.9
+    },
+    {
+      "name": "Gorditas",
+      "cuisine": "Mexican",
+      "address": "10065 Harry Hines Blvd, Dallas, TX 75220",
+      "lat": 32.859941,
+      "lon": -96.881385,
+      "price": "$",
+      "notes": "",
+      "minutes": 6.4
+    },
+    {
+      "name": "Hong Dumpling House",
+      "cuisine": "Korean",
+      "address": "1901 Royal Ln #105, Dallas, TX 75229",
+      "lat": 32.896076,
+      "lon": -96.913811,
+      "price": "$$",
+      "notes": "Dumplings.",
+      "url": "https://www.hongdumplinghouse.com/",
+      "minutes": 8.0
+    },
+    {
+      "name": "Italian Cafe",
+      "cuisine": "Italian",
+      "address": "387 E Las Colinas Blvd, Irving, TX 75039",
+      "lat": 32.865135,
+      "lon": -96.936539,
+      "price": "$$",
+      "notes": "Pasta and New York style pizza. Patio.",
+      "url": "https://www.italianitaliancafe.com/",
+      "minutes": 7.2
+    },
+    {
+      "name": "Jason's Deli",
+      "cuisine": "Sandwiches",
+      "address": "10220 Technology Blvd E, Dallas, TX 75220",
+      "lat": 32.860607,
+      "lon": -96.893719,
+      "price": "$",
+      "notes": "Sandwiches, salad bar.",
+      "minutes": 4.5
+    },
+    {
+      "name": "Keller's Hamburgers",
+      "cuisine": "Burgers",
+      "address": "10226 Harry Hines Blvd, Dallas, TX 75220",
+      "lat": 32.868965,
+      "lon": -96.882016,
+      "price": "$",
+      "notes": "Drive-in.",
+      "minutes": 6.6
+    },
+    {
+      "name": "King Buffet",
+      "cuisine": "Chinese",
+      "address": "10250 Technology Blvd W, Dallas, TX 75220",
+      "lat": 32.862331,
+      "lon": -96.900262,
+      "price": "$",
+      "notes": "Buffet. Opens at 11.",
+      "minutes": 3.9
+    },
+    {
+      "name": "Korea House",
+      "cuisine": "Korean",
+      "address": "2598 Royal Ln, Dallas, TX 75229",
+      "price": "$$",
+      "notes": "Korean barbecue and sushi. Open since 1979.",
+      "lat": 32.895527,
+      "lon": -96.891588,
+      "minutes": 8.1
+    },
+    {
+      "name": "Koryo Korean BBQ",
+      "cuisine": "Korean",
+      "address": "2560 Royal Ln #105, Dallas, TX 75229",
+      "lat": 32.89561,
+      "lon": -96.893168,
+      "price": "$$",
+      "notes": "Known for its banchan.",
+      "url": "https://www.eatkoryo.com",
+      "minutes": 7.8
+    },
+    {
+      "name": "Longhorn Icehouse",
+      "cuisine": "American",
+      "address": "1901 W Northwest Hwy, Dallas, TX 75220",
+      "lat": 32.86945,
+      "lon": -96.912635,
+      "price": "$$",
+      "notes": "Next door. Burgers, wings, chicken fried steak. Opens at 11.",
+      "url": "https://www.longhornicehouse.com",
+      "minutes": 2.3
+    },
+    {
+      "name": "Luna's Tortillas",
+      "cuisine": "Mexican",
+      "address": "2225 Connector Dr, Dallas, TX 75220",
+      "lat": 32.85975,
+      "lon": -96.895755,
+      "price": "$",
+      "notes": "Tortilla factory with a restaurant.",
+      "minutes": 4.8
+    },
+    {
+      "name": "Mama's Daughters' Diner",
+      "cuisine": "American",
+      "address": "2610 Royal Ln, Dallas, TX 75229",
+      "lat": 32.895012,
+      "lon": -96.890279,
+      "price": "$",
+      "notes": "Southern diner.",
+      "minutes": 8.0
+    },
+    {
+      "name": "Monaco",
+      "cuisine": "Italian",
+      "address": "5238 N O'Connor Blvd, Irving, TX 75039",
+      "lat": 32.86909,
+      "lon": -96.938623,
+      "price": "$$$",
+      "notes": "Upscale, on the water.",
+      "minutes": 5.5
+    },
+    {
+      "name": "No. 1 Plus Chicken",
+      "cuisine": "Korean",
+      "address": "2240 Royal Ln #103, Dallas, TX 75229",
+      "lat": 32.894994,
+      "lon": -96.902865,
+      "price": "$$",
+      "notes": "Korean fried chicken. Opens at 11:30.",
+      "minutes": 8.5
+    },
+    {
+      "name": "Ojos Locos Sports Cantina",
+      "cuisine": "Mexican",
+      "address": "10230 Technology Blvd E, Dallas, TX 75220",
+      "lat": 32.860906,
+      "lon": -96.894034,
+      "price": "$$",
+      "notes": "Sports bar.",
+      "minutes": 4.6
+    },
+    {
+      "name": "Olive Garden",
+      "cuisine": "Italian",
+      "address": "10280 Technology Blvd E, Dallas, TX 75220",
+      "lat": 32.862552,
+      "lon": -96.895892,
+      "price": "$$",
+      "notes": "",
+      "minutes": 3.7
+    },
+    {
+      "name": "Pappadeaux Seafood Kitchen",
+      "cuisine": "Seafood",
+      "address": "10428 Lombardy Ln, Dallas, TX 75220",
+      "lat": 32.866057,
+      "lon": -96.896915,
+      "price": "$$$",
+      "notes": "Cajun seafood.",
+      "minutes": 4.2
+    },
+    {
+      "name": "Pappas Bar-B-Q",
+      "cuisine": "Barbecue",
+      "address": "2231 W Northwest Hwy, Dallas, TX 75220",
+      "lat": 32.864221,
+      "lon": -96.897495,
+      "price": "$$",
+      "notes": "Counter service.",
+      "minutes": 3.4
+    },
+    {
+      "name": "Pappasito's Cantina",
+      "cuisine": "Mexican",
+      "address": "10433 Lombardy Ln, Dallas, TX 75220",
+      "lat": 32.865937,
+      "lon": -96.898318,
+      "price": "$$",
+      "notes": "Tex-Mex, fajitas.",
+      "url": "https://pappasitos.com/location/northwest-hwy-at-i-35",
+      "minutes": 3.8
+    },
+    {
+      "name": "Raising Cane's",
+      "cuisine": "Chicken",
+      "address": "2255 W Northwest Hwy, Dallas, TX 75220",
+      "lat": 32.863493,
+      "lon": -96.895446,
+      "price": "$",
+      "notes": "Chicken fingers.",
+      "minutes": 4.4
+    },
+    {
+      "name": "Seoul Garden",
+      "cuisine": "Korean",
+      "address": "2502 Royal Ln, Dallas, TX 75229",
+      "lat": 32.895497,
+      "lon": -96.895566,
+      "price": "$$",
+      "notes": "Korean barbecue, lunch specials.",
+      "url": "http://www.dallasseoulgarden.com/",
+      "minutes": 7.9
     },
     {
       "name": "Shawarma Press",
@@ -329,7 +292,79 @@
       "lon": -96.940247,
       "price": "$",
       "notes": "Shawarma wraps and bowls. Opens at 11.",
-      "url": "http://www.shawarma.press/"
+      "url": "http://www.shawarma.press/",
+      "minutes": 6.9
+    },
+    {
+      "name": "Taqueria El Paisano",
+      "cuisine": "Mexican",
+      "address": "2911 Lombardy Ln, Dallas, TX 75220",
+      "lat": 32.866712,
+      "lon": -96.876377,
+      "price": "$",
+      "notes": "",
+      "minutes": 6.9
+    },
+    {
+      "name": "Thirsty Lion Gastropub",
+      "cuisine": "American",
+      "address": "350 W Las Colinas Blvd, Irving, TX 75039",
+      "lat": 32.875396,
+      "lon": -96.94394,
+      "price": "$$",
+      "notes": "Toyota Music Factory.",
+      "minutes": 6.1
+    },
+    {
+      "name": "Tipico's",
+      "cuisine": "Mexican",
+      "address": "3118 W Northwest Hwy, Dallas, TX 75220",
+      "lat": 32.854747,
+      "lon": -96.867538,
+      "price": "$",
+      "notes": "",
+      "minutes": 6.7
+    },
+    {
+      "name": "Two Mules Cantina",
+      "cuisine": "Mexican",
+      "address": "501 W Las Colinas Blvd, Irving, TX 75039",
+      "lat": 32.877074,
+      "lon": -96.941933,
+      "price": "$$",
+      "notes": "Tex-Mex at the Texican Court hotel. Lunch weekdays 11 to 4.",
+      "url": "https://www.twomulescantina.com/",
+      "minutes": 5.3
+    },
+    {
+      "name": "Whataburger",
+      "cuisine": "Burgers",
+      "address": "2955 Walnut Hill Ln, Dallas, TX 75229",
+      "lat": 32.881352,
+      "lon": -96.878716,
+      "price": "$",
+      "notes": "",
+      "minutes": 8.3
+    },
+    {
+      "name": "Yard House",
+      "cuisine": "American",
+      "address": "320 W Las Colinas Blvd, Irving, TX 75039",
+      "lat": 32.874491,
+      "lon": -96.944128,
+      "price": "$$",
+      "notes": "Toyota Music Factory.",
+      "minutes": 6.2
+    },
+    {
+      "name": "Zeytin Mediterranean Grill",
+      "cuisine": "Mediterranean",
+      "address": "114 E John Carpenter Fwy, Irving, TX 75062",
+      "lat": 32.866045,
+      "lon": -96.944679,
+      "price": "$$",
+      "notes": "Turkish. Weekday lunch buffet.",
+      "minutes": 6.7
     }
   ]
 }
