@@ -352,8 +352,12 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
       body.append(el('p', 'banner', `Choosing from ${label}`), name, detail);
       state.open = null;
       showCard(body);
-      const everything = L.latLngBounds([[office.lat, office.lon], ...candidates.map(p => [p.lat, p.lon])]);
-      map.fitBounds(everything, { padding: [24, 24], maxZoom: 15, animate: false });
+      // Leave the map alone if every candidate is already on it. Otherwise
+      // frame just the candidates, which is as far out as it needs to go.
+      const candidateBox = L.latLngBounds(candidates.map(p => [p.lat, p.lon]));
+      if (!map.getBounds().contains(candidateBox)) {
+        map.fitBounds(candidateBox, { padding: [24, 24], maxZoom: 15, animate: false });
+      }
       const steps = 16;
       for (let step = 0; step < steps; step++) {
         const p = step === steps - 1 ? winner : candidates[Math.floor(Math.random() * candidates.length)];
