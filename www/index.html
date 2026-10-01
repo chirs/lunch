@@ -52,8 +52,8 @@
     .slider-head { display: flex; justify-content: space-between; }
     .slider output { color: var(--muted); }
     .slider input { display: block; width: 100%; margin: 4px 0 0; accent-color: var(--accent); }
-    #choices { display: flex; gap: 8px; }
-    #cuisine {
+    #choices, #order { display: flex; gap: 8px; }
+    #controls select {
       flex: 1;
       min-width: 0;
       font: inherit;
@@ -78,6 +78,7 @@
     #legend { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--muted); }
     #legend span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
     .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+    .dot.ring { border: 2px solid var(--ink); }
     .tier-0 { background: var(--tier-0); }
     .tier-1 { background: var(--tier-1); }
     .tier-2 { background: var(--tier-2); }
@@ -94,6 +95,7 @@
     .name { font-weight: 600; }
     .score { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
     .meta, .notes { color: var(--muted); font-size: 13px; }
+    .visited { font-size: 13px; }
     #credit {
       margin: 0;
       padding: 6px 16px;
@@ -121,11 +123,11 @@
     @media (max-width: 700px) {
       body { flex-direction: column-reverse; height: 100dvh; }
       #panel { width: auto; flex: 1; border-right: 0; border-top: 1px solid var(--line); }
-      #map { flex: none; height: 40dvh; }
+      #map { flex: none; height: 36dvh; }
       header { padding: 8px 16px 4px; display: flex; align-items: baseline; gap: 10px; }
       h1 { font-size: 18px; }
       #controls { grid-template-columns: 1fr 1fr; gap: 8px 12px; padding-bottom: 8px; }
-      #choices, #legend { grid-column: 1 / -1; }
+      #choices, #order, #legend { grid-column: 1 / -1; }
     }
   </style>
 </head>
@@ -146,6 +148,13 @@
       </label>
       <div id="choices">
         <select id="cuisine" aria-label="Cuisine"></select>
+      </div>
+      <div id="order">
+        <select id="visits" aria-label="Visited">
+          <option value="">Visited or not</option>
+          <option value="no">Not visited yet</option>
+          <option value="yes">Visited</option>
+        </select>
         <div id="sort" role="group" aria-label="Sort by">
           <button type="button" data-sort="score">Best</button>
           <button type="button" data-sort="minutes">Nearest</button>
@@ -199,6 +208,13 @@
       return [place.cuisine, place.price, minutesText(place) + suffix].filter(Boolean).join(' · ');
     }
 
+    function visitedText(place) {
+      if (place.visited === true) return '✓ Visited';
+      const [year, month, day] = place.visited.split('-').map(Number);
+      const date = new Date(year, month - 1, day);
+      return `✓ Visited ${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    }
+
     function qualityText(place) {
       const google = place.rating === undefined ? '' :
         `Google ${place.rating.toFixed(1)} (${place.reviews.toLocaleString()} reviews)`;
@@ -210,6 +226,7 @@
       const box = el('div', 'popup');
       box.append(el('div', 'name', place.name), el('div', 'meta', meta(place, ' drive')));
       if (place.score !== undefined) box.append(el('div', 'meta', qualityText(place)));
+      if (place.visited) box.append(el('div', 'visited', visitedText(place)));
       if (place.notes) box.append(el('div', 'notes', place.notes));
       const links = el('div', 'links');
       const directions = el('a', '', 'Directions');
@@ -239,6 +256,7 @@
         top.append(score);
       }
       row.append(top, el('div', 'meta', meta(place)));
+      if (place.visited) row.append(el('div', 'visited', visitedText(place)));
       if (place.notes) row.append(el('div', 'notes', place.notes));
       return row;
     }
@@ -252,7 +270,7 @@
     fetch('places.json').then(r => r.json()).then(({ office, places, updated }) => {
       places = places.filter(p => !p.hidden);
       const hasScores = places.some(p => p.score !== undefined);
-      const state = { cuisine: '', sort: hasScores ? 'score' : 'minutes' };
+      const state = { cuisine: '', visits: '', sort: hasScores ? 'score' : 'minutes' };
 
       L.marker([office.lat, office.lon], {
         icon: L.divIcon({ className: '', html: '<div class="office-pin"></div>', iconSize: [16, 16] }),
@@ -261,7 +279,7 @@
 
       for (const p of places) {
         p.marker = L.circleMarker([p.lat, p.lon], {
-          radius: TIER_RADIUS[tier(p)], color: '#fff', weight: 2,
+          radius: TIER_RADIUS[tier(p)], color: p.visited ? '#1f2328' : '#fff', weight: 2,
           fillColor: tierColors[tier(p)], fillOpacity: 1,
         }).bindPopup(() => popupFor(p, office));
         p.row = rowFor(p);
@@ -280,7 +298,8 @@
         $('time-value').textContent = `within ${maxMinutes} min`;
         $('quality-value').textContent = minScore === null ? 'any' : `${minScore.toFixed(1)} and up`;
         return places.filter(p =>
-          p.minutes <= maxMinutes && (minScore === null || shownScore(p) >= minScore));
+          p.minutes <= maxMinutes && (minScore === null || shownScore(p) >= minScore) &&
+          (!state.visits || (state.visits === 'yes') === Boolean(p.visited)));
       }
 
       function render() {
@@ -324,6 +343,10 @@
         state.cuisine = event.target.value;
         render();
       });
+      $('visits').addEventListener('change', event => {
+        state.visits = event.target.value;
+        render();
+      });
       for (const button of document.querySelectorAll('#sort button')) {
         button.addEventListener('click', () => {
           state.sort = button.dataset.sort;
@@ -340,6 +363,9 @@
           item.prepend(el('span', `dot tier-${n}`));
           return item;
         }));
+        const visited = el('span', '', 'visited');
+        visited.prepend(el('span', 'dot ring'));
+        $('legend').append(visited);
         $('legend').hidden = false;
       } else {
         $('sort').hidden = true;
