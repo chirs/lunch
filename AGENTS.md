@@ -82,15 +82,24 @@ right shape.
 Each place's `cuisine` comes from Google's primary type (`CUISINES` renames
 and merges a few). Google calls about a quarter of places just "restaurant",
 so `cuisine()` falls back, in order of trust, to a telling word in the name
-(`NAME_HINTS`), then the place's other Google types, then Fast Food. Name
+(`NAME_HINTS`), then the place's other Google types, then a telling word in
+Google's written summary of the place (`SUMMARY_HINTS`), then Fast Food. Name
 before types is deliberate: the type lists are not in order of relevance and
-put Whataburger under Chicken and a pupuseria under Bar & Grill. About 100
-places (5%) still end up as Other; they have no cuisine type and names like
-"Hudson House".
+put Whataburger under Chicken and a pupuseria under Bar & Grill. A branch
+still left as Other then takes the cuisine of its same-named branches
+(`share_cuisines()`).
 
-A full fetch now asks for `types`. The saved results from 2026-10-01 predate
-that, so the places that needed it were backfilled one at a time through Place
-Details (field mask `types`, the Essentials tier, 10,000 free a month).
+About 54 places (3%) still end up as Other. Sanjh and Monaco are among them:
+no cuisine type, nothing in the name, and Google has no summary for either.
+Only 69 of the 122 places asked about had a summary at all.
+
+A full fetch asks for `types`, and any fetch then looks up a summary for each
+place still Other (`add_summaries()`, Place Details with `editorialSummary`
+and `generativeSummary`, a tier with 1,000 free a month). It saves the answer
+even when empty, so nothing is asked twice. The saved results from 2026-10-01
+predate the `types` field, so the places that needed it were backfilled one at
+a time through Place Details (field mask `types`, the Essentials tier, 10,000
+free a month).
 
 `GROUPS` sorts the cuisines into the groups of the site's cuisine checklist. A
 cuisine in no group shows under Other, and a run prints any it finds.
