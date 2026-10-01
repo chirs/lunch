@@ -1,0 +1,485 @@
+// Lunch Simulator. The data is places.json, which update.py writes.
+
+const TIER_HALF_WIDTH = [5, 6, 7];
+const SEGMENTS = 10;
+const MAX_MINUTES = 20;
+const SHORTLIST_KEY = 'lunch-shortlist';
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+// Score at or above each cut moves a place up a tier. Tiers and the quality
+// slider compare the score as displayed, rounded to one decimal. The cuts
+// come from places.json, where update.py sizes them to the data.
+let tierCuts = [4.3, 4.5];
+
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const tierColors = [0, 1, 2].map(
+  n => getComputedStyle(document.documentElement).getPropertyValue(`--tier-${n}`).trim());
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text) node.textContent = text;
+  return node;
+}
+
+function link(label, href) {
+  const a = el('a', 'button', label);
+  a.href = href;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  return a;
+}
+
+// Pins are squares. Leaflet's canvas renderer only knows circles, so this
+// draws the square itself and leaves hit-testing to the circle underneath.
+L.Canvas.include({
+  _updateSquare(layer) {
+    if (!this._drawing || layer._empty()) return;
+    const ctx = this._ctx;
+    const half = layer._radius;
+    const x = Math.round(layer._point.x) - half, y = Math.round(layer._point.y) - half;
+    ctx.beginPath();
+    ctx.rect(x, y, half * 2, half * 2);
+    this._fillStroke(ctx, layer);
+    if (layer.options.visited) {
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x + half - 2, y + half - 2, 4, 4);
+    }
+  },
+});
+const SquareMarker = L.CircleMarker.extend({
+  _updatePath() { this._renderer._updateSquare(this); },
+});
+
+function shownScore(place) {
+  return Number(place.score.toFixed(1));
+}
+
+function tier(place) {
+  return tierCuts.filter(cut => shownScore(place) >= cut).length;
+}
+
+function minutesText(place) {
+  return `${Math.max(1, Math.round(place.minutes))} min`;
+}
+
+function meta(place) {
+  return [place.cuisine, place.price, minutesText(place)].filter(Boolean).join(' · ');
+}
+
+function visitedText(place) {
+  if (place.visited === true) return '✓ Visited';
+  const [year, month, day] = place.visited.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return `✓ Visited ${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+}
+
+// "1430" -> "2:30 PM"
+function clock(hhmm) {
+  const hour = Number(hhmm.slice(0, 2)) % 24, minute = hhmm.slice(2);
+  if (minute === '00' && hour === 0) return 'midnight';
+  if (minute === '00' && hour === 12) return 'noon';
+  return `${hour % 12 || 12}${minute === '00' ? '' : `:${minute}`} ${hour < 12 ? 'AM' : 'PM'}`;
+}
+
+// One day's "1100-1400,1700-0200" as minute ranges. A range that ends at or
+// before its start runs past midnight, so its end lands beyond 1440.
+function ranges(day) {
+  if (!day) return [];
+  return day.split(',').map(range => {
+    const [from, to] = range.split('-');
+    const start = Number(from.slice(0, 2)) * 60 + Number(from.slice(2));
+    let end = Number(to.slice(0, 2)) * 60 + Number(to.slice(2));
+    if (end <= start) end += 1440;
+    return { start, end, from, to };
+  });
+}
+
+function dayText(day) {
+  if (day === '0000-2400') return 'Open 24 hours';
+  return ranges(day).map(r => `${clock(r.from)} to ${clock(r.to)}`).join(', ') || 'Closed';
+}
+
+function openStatus(hours, now = new Date()) {
+  if (!hours) return null;
+  if (hours.every(day => day === '0000-2400')) return { open: true, text: 'Open 24 hours' };
+  const today = now.getDay(), minute = now.getHours() * 60 + now.getMinutes();
+  // Yesterday's late range may still be running.
+  for (const [back, shift] of [[0, 0], [1, 1440]]) {
+    const running = ranges(hours[(today - back + 7) % 7])
+      .find(r => r.start <= minute + shift && minute + shift < r.end);
+    if (running) return { open: true, text: `Open until ${clock(running.to)}` };
+  }
+  for (let ahead = 0; ahead < 7; ahead++) {
+    const day = (today + ahead) % 7;
+    const next = ranges(hours[day]).find(r => ahead > 0 || r.start > minute);
+    if (!next) continue;
+    const when = ahead === 0 ? '' : ahead === 1 ? ' tomorrow' : ` ${DAYS[day]}`;
+    return { open: false, text: `Closed, opens ${clock(next.from)}${when}` };
+  }
+  return { open: false, text: 'Closed' };
+}
+
+function bar(filled, className = '') {
+  const node = el('span', `bar inset ${className}`);
+  const on = Math.max(0, Math.min(SEGMENTS, Math.round(filled)));
+  for (let n = 0; n < SEGMENTS; n++) node.append(el('i', n < on ? 'on' : ''));
+  return node;
+}
+
+function stat(label, filled, value, className) {
+  const term = el('dt', '', label), detail = el('dd');
+  detail.append(bar(filled, className), el('span', 'value', value));
+  return [term, detail];
+}
+
+function stats(place) {
+  const list = el('dl', 'stats');
+  list.append(
+    ...stat('Quality', (place.score - 3.5) / 1.5 * SEGMENTS, place.score.toFixed(1), `tier-${tier(place)}`),
+    ...stat('Speed', (MAX_MINUTES - place.minutes) / MAX_MINUTES * SEGMENTS, minutesText(place)),
+    // Review counts run from 20 to tens of thousands, so the bar is logarithmic.
+    ...stat('Crowd', Math.max(1, (Math.log10(place.reviews) - 1.3) / 2.7 * SEGMENTS),
+      `${place.reviews.toLocaleString()} votes`),
+    ...stat('Cost', place.price ? place.price.length * 2.5 : 0, place.price || 'not listed'),
+  );
+  return list;
+}
+
+function breakdown(place, average) {
+  const google = `Google ${place.rating.toFixed(1)} from ${place.reviews.toLocaleString()} reviews`;
+  if (place.my_rating) return `Your rating is ${place.my_rating.toFixed(1)}. ${google}.`;
+  return `${google}, pulled toward the area average of ${average.toFixed(1)}.`;
+}
+
+function weekTable(hours, today) {
+  const details = el('details', 'week');
+  const table = el('table');
+  hours.forEach((day, n) => {
+    const row = el('tr', n === today ? 'today' : '');
+    row.append(el('td', '', DAYS[n]), el('td', '', dayText(day)));
+    table.append(row);
+  });
+  details.append(el('summary', '', 'Hours this week'), table);
+  return details;
+}
+
+function directionsUrl(place, office) {
+  return 'https://www.google.com/maps/dir/?api=1' +
+    `&origin=${office.lat},${office.lon}` +
+    `&destination=${encodeURIComponent(place.name + ', ' + place.address)}` +
+    (place.id ? `&destination_place_id=${place.id}` : '');
+}
+
+// visit.py ignores punctuation when matching, so drop what a shell would trip on.
+function visitCommand(place) {
+  return `./visit.py "${place.name.replace(/["$\`\\!]/g, '')}" --date today`;
+}
+
+function weightedPick(pool) {
+  // Squaring the margin over 3.0 makes a 4.8 about twice as likely as a 4.3.
+  const weights = pool.map(p => Math.max(0.1, p.score - 3) ** 2);
+  let roll = Math.random() * weights.reduce((a, b) => a + b, 0);
+  return pool.find((p, n) => (roll -= weights[n]) < 0) ?? pool.at(-1);
+}
+
+function loadShortlist() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(SHORTLIST_KEY)) ?? []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveShortlist(shortlist) {
+  try {
+    localStorage.setItem(SHORTLIST_KEY, JSON.stringify([...shortlist]));
+  } catch {
+    // Private windows can refuse storage; the shortlist then lasts until reload.
+  }
+}
+
+// One option per distinct key, most common first and "Other" last.
+function fill(select, places, key, selected, allLabel) {
+  const counts = {};
+  for (const p of places) counts[key(p)] = (counts[key(p)] || 0) + 1;
+  if (selected && !counts[selected]) counts[selected] = 0;
+  const names = Object.keys(counts).sort((a, b) =>
+    (a === 'Other') - (b === 'Other') || counts[b] - counts[a] || a.localeCompare(b));
+  select.replaceChildren(
+    new Option(allLabel, ''), ...names.map(name => new Option(`${name} (${counts[name]})`, name)));
+  select.value = selected;
+}
+
+function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
+  if (tier_cuts) tierCuts = tier_cuts;
+  places = places.filter(p => !p.hidden);
+  for (const p of places) p.group = cuisine_groups[p.cuisine] ?? 'Other';
+  const average = places.reduce((sum, p) => sum + p.rating, 0) / places.length;
+  const shortlist = loadShortlist();
+  const state = { group: '', cuisine: '', show: '', sort: 'score', open: null, shown: [], simulating: false };
+
+  const map = L.map('map', { preferCanvas: true });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  }).addTo(map);
+  const pins = L.layerGroup().addTo(map);
+  L.marker([office.lat, office.lon], {
+    icon: L.divIcon({ className: '', html: '<div class="office-pin"></div>', iconSize: [16, 16] }),
+    zIndexOffset: 1000,
+  }).addTo(map).bindTooltip(`${office.name}: ${office.address}`);
+  // Marks the open restaurant, and flicks around during a simulation.
+  const cursor = L.marker([office.lat, office.lon], {
+    icon: L.divIcon({ className: '', html: '<div class="cursor"></div>', iconSize: [30, 30] }),
+    interactive: false,
+    zIndexOffset: 900,
+  });
+
+  function rowFor(place) {
+    const row = el('li');
+    row.tabIndex = 0;
+    const top = el('div', 'row');
+    const score = el('span', 'score', place.score.toFixed(1));
+    score.prepend(el('span', `pin tier-${tier(place)}`));
+    top.append(el('span', 'name', place.name), score);
+    row.append(top, el('div', 'meta', meta(place)));
+    if (place.visited) row.append(el('div', 'visited-line', visitedText(place)));
+    if (place.notes) row.append(el('div', 'notes', place.notes));
+    return row;
+  }
+
+  function markStar(place) {
+    place.row.querySelector('.name').textContent = (shortlist.has(place.id) ? '★ ' : '') + place.name;
+  }
+
+  for (const p of places) {
+    p.marker = new SquareMarker([p.lat, p.lon], {
+      radius: TIER_HALF_WIDTH[tier(p)], color: '#000', weight: 1,
+      fillColor: tierColors[tier(p)], fillOpacity: 1, visited: Boolean(p.visited),
+    });
+    p.row = rowFor(p);
+    markStar(p);
+    p.marker.on('click', () => openCard(p));
+    p.row.addEventListener('click', () => openCard(p));
+    p.row.addEventListener('keydown', event => {
+      if (event.key === 'Enter') openCard(p);
+    });
+  }
+
+  function showCard(title, body) {
+    const bar = el('header', 'titlebar');
+    const close = el('button', 'button close', '×');
+    close.type = 'button';
+    close.setAttribute('aria-label', 'Close');
+    close.addEventListener('click', closeCard);
+    bar.append(el('h2', '', title), close);
+    $('card').replaceChildren(bar, body);
+    $('card').hidden = false;
+    $('list').hidden = true;
+    $('panel').classList.add('card-open');
+  }
+
+  function closeCard() {
+    const last = state.open;
+    state.open = null;
+    $('card').hidden = true;
+    $('list').hidden = false;
+    $('panel').classList.remove('card-open');
+    cursor.remove();
+    document.querySelectorAll('#list li.selected').forEach(li => li.classList.remove('selected'));
+    if (last?.row.isConnected) {
+      last.row.classList.add('selected');
+      last.row.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  function openCard(place, banner) {
+    state.open = place;
+    const body = el('div', 'card-body');
+    if (banner) body.append(el('p', 'banner', banner));
+
+    const status = openStatus(place.hours);
+    body.append(
+      el('p', 'card-meta', [place.cuisine, place.price, status?.text ?? 'Hours not listed'].filter(Boolean).join(' · ')),
+      stats(place),
+      el('p', 'breakdown', breakdown(place, average)),
+    );
+    const actions = el('div', 'actions');
+    actions.append(link('Dispatch', directionsUrl(place, office)));
+    if (place.maps) actions.append(link('Intel', place.maps));
+    if (place.url) actions.append(link('Site', place.url));
+
+    const star = el('button', 'button');
+    star.type = 'button';
+    const labelStar = () => {
+      star.textContent = shortlist.has(place.id) ? '★ Shortlisted' : '☆ Shortlist';
+      star.setAttribute('aria-pressed', shortlist.has(place.id));
+    };
+    star.addEventListener('click', () => {
+      if (!shortlist.delete(place.id)) shortlist.add(place.id);
+      saveShortlist(shortlist);
+      labelStar();
+      markStar(place);
+      render();
+    });
+    labelStar();
+
+    const command = el('div', 'command');
+    command.hidden = true;
+    const log = el('button', 'button', 'Log it');
+    log.type = 'button';
+    log.addEventListener('click', async () => {
+      const text = visitCommand(place);
+      let copied = true;
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        copied = false;
+      }
+      command.replaceChildren(
+        el('span', '', copied ? 'Copied. Paste it in a terminal in the lunch repo:' : 'Run this in the lunch repo:'),
+        el('code', 'inset', text));
+      command.hidden = false;
+    });
+    actions.append(star, log);
+    body.append(actions, command);
+    if (place.visited) body.append(el('p', 'visited-line', visitedText(place)));
+    if (place.notes) body.append(el('p', 'card-notes inset', place.notes));
+    if (place.hours) body.append(weekTable(place.hours, new Date().getDay()));
+
+    showCard(place.name, body);
+    const spot = [place.lat, place.lon];
+    cursor.setLatLng(spot).addTo(map);
+    if (!map.getBounds().pad(-0.1).contains(spot)) map.panTo(spot);
+  }
+
+  async function simulate() {
+    const starred = places.filter(p => shortlist.has(p.id));
+    const pool = starred.length >= 2 ? starred : state.shown;
+    if (state.simulating || !pool.length) return;
+    const winner = weightedPick(pool);
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (pool.length > 1 && !still) {
+      state.simulating = true;
+      $('simulate').disabled = true;
+      const body = el('div', 'card-body simulating');
+      const name = el('div', 'name'), detail = el('div', 'meta');
+      const from = starred.length >= 2 ? `${pool.length} shortlisted` : `${pool.length} on screen`;
+      body.append(el('p', 'banner', `Choosing from ${from}`), name, detail);
+      state.open = null;
+      showCard('Simulating lunch', body);
+      const everything = L.latLngBounds([[office.lat, office.lon], ...pool.map(p => [p.lat, p.lon])]);
+      if (!map.getBounds().contains(everything)) map.fitBounds(everything, { padding: [24, 24], animate: false });
+      const steps = 16;
+      for (let step = 0; step < steps; step++) {
+        const p = step === steps - 1 ? winner : pool[Math.floor(Math.random() * pool.length)];
+        cursor.setLatLng([p.lat, p.lon]).addTo(map);
+        name.textContent = p.name;
+        detail.textContent = meta(p);
+        await sleep(60 + step * step * 1.1);
+      }
+      await sleep(350);
+      state.simulating = false;
+      $('simulate').disabled = false;
+    }
+    openCard(winner, 'Simulation complete. Lunch is at:');
+  }
+
+  function visible() {
+    const maxMinutes = Number($('time').value);
+    const quality = $('quality');
+    const minScore = quality.value === quality.min ? null : Number(quality.value);
+    $('time-value').textContent = `within ${maxMinutes} min`;
+    $('quality-value').textContent = minScore === null ? 'any' : `${minScore.toFixed(1)} and up`;
+    const show = {
+      '': () => true,
+      new: p => !p.visited,
+      visited: p => Boolean(p.visited),
+      shortlist: p => shortlist.has(p.id),
+    }[state.show];
+    return places.filter(p =>
+      p.minutes <= maxMinutes && (minScore === null || shownScore(p) >= minScore) && show(p));
+  }
+
+  function render() {
+    const inRange = visible();
+
+    // The second dropdown drills into the chosen group, when there is more
+    // than one cuisine in it to choose from.
+    const inGroup = inRange.filter(p => !state.group || p.group === state.group);
+    fill($('group'), inRange, p => p.group, state.group, `All cuisines (${inRange.length})`);
+    fill($('cuisine'), inGroup, p => p.cuisine, state.cuisine, `All ${state.group} (${inGroup.length})`);
+    $('cuisine').hidden = !state.group || state.group === 'Other' || $('cuisine').options.length < 3;
+
+    const shown = inGroup.filter(p => !state.cuisine || p.cuisine === state.cuisine);
+    const byTime = (a, b) => a.minutes - b.minutes;
+    const byScore = (a, b) => b.score - a.score || byTime(a, b);
+    shown.sort(state.sort === 'score' ? byScore : byTime);
+    $('list').replaceChildren(...shown.map(p => p.row));
+
+    // Best last, so the strongest pins draw on top.
+    pins.clearLayers();
+    for (const p of shown.toSorted((a, b) => byScore(b, a))) pins.addLayer(p.marker);
+
+    for (const button of document.querySelectorAll('#sort button')) {
+      button.setAttribute('aria-pressed', button.dataset.sort === state.sort);
+    }
+    $('summary').textContent = `${shown.length} of ${places.length}`;
+    $('counts').textContent = `${shown.length} options · shortlist ${shortlist.size}`;
+    $('simulate').disabled = shown.length === 0 && shortlist.size < 2;
+    state.shown = shown;
+    return shown;
+  }
+
+  function fit(shown) {
+    map.fitBounds(
+      L.latLngBounds([[office.lat, office.lon], ...shown.map(p => [p.lat, p.lon])]),
+      { padding: [16, 16], maxZoom: 15 },
+    );
+  }
+
+  $('time').addEventListener('input', render);
+  $('time').addEventListener('change', () => fit(render()));
+  $('quality').addEventListener('input', render);
+  $('group').addEventListener('change', event => {
+    state.group = event.target.value;
+    state.cuisine = '';
+    render();
+  });
+  $('cuisine').addEventListener('change', event => {
+    state.cuisine = event.target.value;
+    render();
+  });
+  $('show').addEventListener('change', event => {
+    state.show = event.target.value;
+    render();
+  });
+  for (const button of document.querySelectorAll('#sort button')) {
+    button.addEventListener('click', () => {
+      state.sort = button.dataset.sort;
+      render();
+      $('list').scrollTop = 0;
+    });
+  }
+  $('simulate').addEventListener('click', simulate);
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !$('card').hidden && !state.simulating) closeCard();
+  });
+
+  const labels = [`under ${tierCuts[0]}`, `${tierCuts[0]} to ${tierCuts[1]}`, `${tierCuts[1]} and up`];
+  $('legend').append(...labels.map((label, n) => {
+    const item = el('span', '', label);
+    item.prepend(el('span', `pin tier-${n}`));
+    return item;
+  }));
+  const visited = el('span', '', 'visited');
+  visited.prepend(el('span', 'pin visited'));
+  $('legend').append(visited);
+  $('credit').textContent =
+    `Ratings: Google Maps${updated ? `, ${updated}` : ''}. Drive times: OSRM, no traffic.`;
+
+  fit(render());
+}
+
+fetch('places.json').then(response => response.json()).then(start);

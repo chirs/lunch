@@ -3,400 +3,58 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Lunch</title>
+  <title>Lunch Simulator</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16'/%3E%3Crect x='1' y='1' width='14' height='14' fill='%23104281'/%3E%3Crect x='5' y='5' width='6' height='6' fill='%23fff'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="stylesheet" href="style.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <style>
-    :root {
-      --ink: #1f2328;
-      --muted: #656d76;
-      --line: #e3e6ea;
-      --bg: #ffffff;
-      --hover: #f4f6f8;
-      --accent: #256abf;
-      --office: #1f2328;
-      /* One blue, light to dark: the three quality tiers. */
-      --tier-0: #86b6ef;
-      --tier-1: #2a78d6;
-      --tier-2: #104281;
-    }
-    * { box-sizing: border-box; }
-    html, body { height: 100%; margin: 0; }
-    body {
-      display: flex;
-      font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
-      color: var(--ink);
-      background: var(--bg);
-    }
-    #panel {
-      width: 340px;
-      flex: none;
-      display: flex;
-      flex-direction: column;
-      border-right: 1px solid var(--line);
-      min-height: 0;
-    }
-    header { padding: 16px 16px 8px; }
-    h1 { margin: 0; font-size: 22px; }
-    #summary { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
-    #controls {
-      display: grid;
-      gap: 10px;
-      padding: 4px 16px 12px;
-      border-bottom: 1px solid var(--line);
-      font-size: 13px;
-    }
-    .slider { display: block; }
-    .slider-head { display: flex; justify-content: space-between; }
-    .slider output { color: var(--muted); }
-    .slider input { display: block; width: 100%; margin: 4px 0 0; accent-color: var(--accent); }
-    #choices, #order { display: flex; gap: 8px; }
-    #controls select {
-      flex: 1;
-      min-width: 0;
-      font: inherit;
-      padding: 4px 6px;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      background: var(--bg);
-      color: var(--ink);
-    }
-    #sort { display: flex; flex: none; }
-    #sort button {
-      font: inherit;
-      padding: 4px 10px;
-      border: 1px solid var(--line);
-      background: var(--bg);
-      color: var(--ink);
-      cursor: pointer;
-    }
-    #sort button:first-child { border-radius: 6px 0 0 6px; }
-    #sort button:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
-    #sort button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
-    #legend { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--muted); }
-    #legend span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
-    .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
-    .dot.ring { border: 2px solid var(--ink); }
-    .tier-0 { background: var(--tier-0); }
-    .tier-1 { background: var(--tier-1); }
-    .tier-2 { background: var(--tier-2); }
-    [hidden] { display: none !important; }
-    #list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
-    #list li {
-      padding: 10px 16px;
-      border-bottom: 1px solid var(--line);
-      cursor: pointer;
-    }
-    #list li:hover, #list li.selected { background: var(--hover); }
-    #list li.selected { box-shadow: inset 3px 0 var(--accent); }
-    .row { display: flex; justify-content: space-between; gap: 12px; }
-    .name { font-weight: 600; }
-    .score { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
-    .meta, .notes { color: var(--muted); font-size: 13px; }
-    .visited { font-size: 13px; }
-    #credit {
-      margin: 0;
-      padding: 6px 16px;
-      border-top: 1px solid var(--line);
-      color: var(--muted);
-      font-size: 12px;
-    }
-    #map { flex: 1; min-width: 0; }
-    .leaflet-tile-pane { filter: grayscale(0.85); }
-    .office-pin {
-      width: 16px;
-      height: 16px;
-      background: var(--office);
-      border: 3px solid #fff;
-      border-radius: 3px;
-      box-shadow: 0 0 0 1px var(--office);
-      transform: rotate(45deg);
-    }
-    .leaflet-popup-content { margin: 12px 14px; font: inherit; font-size: 14px; }
-    .popup .name { font-size: 15px; }
-    .popup .notes { margin-top: 4px; }
-    .popup .links { margin-top: 8px; display: flex; gap: 12px; }
-    .popup a { color: var(--accent); font-weight: 600; text-decoration: none; }
-
-    @media (max-width: 700px) {
-      body { flex-direction: column-reverse; height: 100dvh; }
-      #panel { width: auto; flex: 1; border-right: 0; border-top: 1px solid var(--line); }
-      #map { flex: none; height: 36dvh; }
-      header { padding: 8px 16px 4px; display: flex; align-items: baseline; gap: 10px; }
-      h1 { font-size: 18px; }
-      #controls { grid-template-columns: 1fr 1fr; gap: 8px 12px; padding-bottom: 8px; }
-      #choices, #order, #legend { grid-column: 1 / -1; }
-    }
-  </style>
 </head>
 <body>
-  <div id="panel">
-    <header>
-      <h1>Lunch</h1>
-      <p id="summary"></p>
-    </header>
-    <div id="controls">
-      <label class="slider">
-        <span class="slider-head"><span>Drive time</span><output id="time-value"></output></span>
-        <input id="time" type="range" min="3" max="20" step="1" value="10">
-      </label>
-      <label class="slider" id="quality-control" hidden>
-        <span class="slider-head"><span>Quality</span><output id="quality-value"></output></span>
-        <input id="quality" type="range" min="3.8" max="4.7" step="0.1" value="3.8">
-      </label>
-      <div id="choices">
-        <select id="group" aria-label="Cuisine group"></select>
-        <select id="cuisine" aria-label="Cuisine" hidden></select>
-      </div>
-      <div id="order">
-        <select id="visits" aria-label="Visited">
-          <option value="">Visited or not</option>
-          <option value="no">Not visited yet</option>
-          <option value="yes">Visited</option>
-        </select>
-        <div id="sort" role="group" aria-label="Sort by">
-          <button type="button" data-sort="score">Best</button>
-          <button type="button" data-sort="minutes">Nearest</button>
+  <div id="desk">
+    <section id="panel" class="window">
+      <header class="titlebar">
+        <h1>Lunch Simulator</h1>
+        <span id="summary"></span>
+      </header>
+      <div id="controls">
+        <label class="slider">
+          <span class="slider-head"><span class="label">Drive time</span><output id="time-value"></output></span>
+          <input id="time" type="range" min="3" max="20" step="1" value="10">
+        </label>
+        <label class="slider">
+          <span class="slider-head"><span class="label">Quality</span><output id="quality-value"></output></span>
+          <input id="quality" type="range" min="3.8" max="4.7" step="0.1" value="3.8">
+        </label>
+        <div id="choices">
+          <select id="group" aria-label="Cuisine group"></select>
+          <select id="cuisine" aria-label="Cuisine" hidden></select>
         </div>
+        <div id="order">
+          <select id="show" aria-label="Show">
+            <option value="">Visited or not</option>
+            <option value="new">Not visited yet</option>
+            <option value="visited">Visited</option>
+            <option value="shortlist">Shortlist</option>
+          </select>
+          <div id="sort" role="group" aria-label="Sort by">
+            <button type="button" class="button" data-sort="score">Best</button>
+            <button type="button" class="button" data-sort="minutes">Nearest</button>
+          </div>
+        </div>
+        <div id="legend"></div>
       </div>
-      <div id="legend" hidden></div>
-    </div>
-    <ul id="list"></ul>
-    <p id="credit"></p>
+      <ul id="list" class="inset"></ul>
+      <article id="card" class="window" hidden></article>
+    </section>
+    <div id="map" class="inset"></div>
   </div>
-  <div id="map"></div>
-
-  <script>
-    // Score at or above each cut moves a place up a tier. Tiers and the quality
-    // slider compare the score as displayed, rounded to one decimal. The cuts
-    // come from places.json, where update.py sizes them to the data.
-    let tierCuts = [4.2, 4.5];
-    const TIER_RADIUS = [5, 6.5, 8];
-    const tierColors = [0, 1, 2].map(
-      n => getComputedStyle(document.documentElement).getPropertyValue(`--tier-${n}`).trim());
-
-    const map = L.map('map', { preferCanvas: true });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    }).addTo(map);
-    const pins = L.layerGroup().addTo(map);
-
-    const $ = id => document.getElementById(id);
-
-    function el(tag, className, text) {
-      const node = document.createElement(tag);
-      if (className) node.className = className;
-      if (text) node.textContent = text;
-      return node;
-    }
-
-    function tier(place) {
-      if (place.score === undefined) return 1;
-      return tierCuts.filter(cut => shownScore(place) >= cut).length;
-    }
-
-    function shownScore(place) {
-      return Number(place.score.toFixed(1));
-    }
-
-    function minutesText(place) {
-      return `${Math.max(1, Math.round(place.minutes))} min`;
-    }
-
-    function meta(place, suffix = '') {
-      return [place.cuisine, place.price, minutesText(place) + suffix].filter(Boolean).join(' · ');
-    }
-
-    function visitedText(place) {
-      if (place.visited === true) return '✓ Visited';
-      const [year, month, day] = place.visited.split('-').map(Number);
-      const date = new Date(year, month - 1, day);
-      return `✓ Visited ${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
-    }
-
-    function qualityText(place) {
-      const google = place.rating === undefined ? '' :
-        `Google ${place.rating.toFixed(1)} (${place.reviews.toLocaleString()} reviews)`;
-      if (place.my_rating) return [`Your rating ${place.my_rating.toFixed(1)}`, google].filter(Boolean).join(' · ');
-      return `Estimated quality ${place.score.toFixed(1)} · ${google}`;
-    }
-
-    function popupFor(place, office) {
-      const box = el('div', 'popup');
-      box.append(el('div', 'name', place.name), el('div', 'meta', meta(place, ' drive')));
-      if (place.score !== undefined) box.append(el('div', 'meta', qualityText(place)));
-      if (place.visited) box.append(el('div', 'visited', visitedText(place)));
-      if (place.notes) box.append(el('div', 'notes', place.notes));
-      const links = el('div', 'links');
-      const directions = el('a', '', 'Directions');
-      directions.href = 'https://www.google.com/maps/dir/?api=1' +
-        `&origin=${office.lat},${office.lon}` +
-        `&destination=${encodeURIComponent(place.name + ', ' + place.address)}` +
-        (place.id ? `&destination_place_id=${place.id}` : '');
-      links.append(directions);
-      for (const [label, href] of [['Google Maps', place.maps], ['Website', place.url]]) {
-        if (!href) continue;
-        const a = el('a', '', label);
-        a.href = href;
-        links.append(a);
-      }
-      for (const a of links.children) { a.target = '_blank'; a.rel = 'noopener'; }
-      box.append(links);
-      return box;
-    }
-
-    function rowFor(place) {
-      const row = el('li');
-      const top = el('div', 'row');
-      top.append(el('span', 'name', place.name));
-      if (place.score !== undefined) {
-        const score = el('span', 'score', place.score.toFixed(1));
-        score.prepend(el('span', `dot tier-${tier(place)}`));
-        top.append(score);
-      }
-      row.append(top, el('div', 'meta', meta(place)));
-      if (place.visited) row.append(el('div', 'visited', visitedText(place)));
-      if (place.notes) row.append(el('div', 'notes', place.notes));
-      return row;
-    }
-
-    // One option per distinct key, most common first and "Other" last.
-    function fill(select, places, key, selected, allLabel) {
-      const counts = {};
-      for (const p of places) counts[key(p)] = (counts[key(p)] || 0) + 1;
-      if (selected && !counts[selected]) counts[selected] = 0;
-      const names = Object.keys(counts).sort((a, b) =>
-        (a === 'Other') - (b === 'Other') || counts[b] - counts[a] || a.localeCompare(b));
-      select.replaceChildren(
-        new Option(allLabel, ''), ...names.map(name => new Option(`${name} (${counts[name]})`, name)));
-      select.value = selected;
-    }
-
-    function select(place) {
-      document.querySelectorAll('#list li.selected').forEach(li => li.classList.remove('selected'));
-      place.row.classList.add('selected');
-      place.row.scrollIntoView({ block: 'nearest' });
-    }
-
-    fetch('places.json').then(r => r.json()).then(({ office, places, updated, tier_cuts, cuisine_groups = {} }) => {
-      if (tier_cuts) tierCuts = tier_cuts;
-      places = places.filter(p => !p.hidden);
-      for (const p of places) p.group = cuisine_groups[p.cuisine] ?? 'Other';
-      const hasScores = places.some(p => p.score !== undefined);
-      const state = { group: '', cuisine: '', visits: '', sort: hasScores ? 'score' : 'minutes' };
-
-      L.marker([office.lat, office.lon], {
-        icon: L.divIcon({ className: '', html: '<div class="office-pin"></div>', iconSize: [16, 16] }),
-        zIndexOffset: 1000,
-      }).addTo(map).bindPopup(el('div', 'popup', `${office.name}: ${office.address}`));
-
-      for (const p of places) {
-        p.marker = L.circleMarker([p.lat, p.lon], {
-          radius: TIER_RADIUS[tier(p)], color: p.visited ? '#1f2328' : '#fff', weight: 2,
-          fillColor: tierColors[tier(p)], fillOpacity: 1,
-        }).bindPopup(() => popupFor(p, office));
-        p.row = rowFor(p);
-        p.marker.on('popupopen', () => select(p));
-        p.marker.on('popupclose', () => p.row.classList.remove('selected'));
-        p.row.addEventListener('click', () => {
-          map.panTo([p.lat, p.lon]);
-          p.marker.openPopup();
-        });
-      }
-
-      function visible() {
-        const maxMinutes = Number($('time').value);
-        const quality = $('quality');
-        const minScore = !hasScores || quality.value === quality.min ? null : Number(quality.value);
-        $('time-value').textContent = `within ${maxMinutes} min`;
-        $('quality-value').textContent = minScore === null ? 'any' : `${minScore.toFixed(1)} and up`;
-        return places.filter(p =>
-          p.minutes <= maxMinutes && (minScore === null || shownScore(p) >= minScore) &&
-          (!state.visits || (state.visits === 'yes') === Boolean(p.visited)));
-      }
-
-      function render() {
-        const inRange = visible();
-
-        // The second dropdown drills into the chosen group, when there is more
-        // than one cuisine in it to choose from.
-        const inGroup = inRange.filter(p => !state.group || p.group === state.group);
-        fill($('group'), inRange, p => p.group, state.group, `All cuisines (${inRange.length})`);
-        fill($('cuisine'), inGroup, p => p.cuisine, state.cuisine, `All ${state.group} (${inGroup.length})`);
-        $('cuisine').hidden = !state.group || state.group === 'Other' || $('cuisine').options.length < 3;
-
-        const shown = inGroup.filter(p => !state.cuisine || p.cuisine === state.cuisine);
-        const byTime = (a, b) => a.minutes - b.minutes;
-        const byScore = (a, b) => (b.score ?? 0) - (a.score ?? 0) || byTime(a, b);
-        shown.sort(state.sort === 'score' ? byScore : byTime);
-        $('list').replaceChildren(...shown.map(p => p.row));
-
-        // Best last, so the strongest pins draw on top.
-        pins.clearLayers();
-        for (const p of shown.toSorted((a, b) => byScore(b, a))) pins.addLayer(p.marker);
-
-        for (const button of document.querySelectorAll('#sort button')) {
-          button.setAttribute('aria-pressed', button.dataset.sort === state.sort);
-        }
-        $('summary').textContent = `${shown.length} of ${places.length} places`;
-        return shown;
-      }
-
-      function fit(shown) {
-        map.fitBounds(
-          L.latLngBounds([[office.lat, office.lon], ...shown.map(p => [p.lat, p.lon])]),
-          { padding: [16, 16], maxZoom: 15 },
-        );
-      }
-
-      $('time').addEventListener('input', render);
-      $('time').addEventListener('change', () => fit(render()));
-      $('quality').addEventListener('input', render);
-      $('group').addEventListener('change', event => {
-        state.group = event.target.value;
-        state.cuisine = '';
-        render();
-      });
-      $('cuisine').addEventListener('change', event => {
-        state.cuisine = event.target.value;
-        render();
-      });
-      $('visits').addEventListener('change', event => {
-        state.visits = event.target.value;
-        render();
-      });
-      for (const button of document.querySelectorAll('#sort button')) {
-        button.addEventListener('click', () => {
-          state.sort = button.dataset.sort;
-          render();
-          $('list').scrollTop = 0;
-        });
-      }
-
-      if (hasScores) {
-        $('quality-control').hidden = false;
-        const labels = [`under ${tierCuts[0]}`, `${tierCuts[0]} to ${tierCuts[1]}`, `${tierCuts[1]} and up`];
-        $('legend').append(...labels.map((label, n) => {
-          const item = el('span', '', label);
-          item.prepend(el('span', `dot tier-${n}`));
-          return item;
-        }));
-        const visited = el('span', '', 'visited');
-        visited.prepend(el('span', 'dot ring'));
-        $('legend').append(visited);
-        $('legend').hidden = false;
-      } else {
-        $('sort').hidden = true;
-      }
-      $('credit').textContent =
-        (hasScores ? `Ratings from Google Maps${updated ? `, ${updated}` : ''}. ` : '') +
-        'Drive times from OSRM, without traffic.';
-
-      fit(render());
-    });
-  </script>
+  <footer id="status" class="window">
+    <button type="button" id="simulate" class="button">&#9654; Run simulation</button>
+    <span id="counts" class="inset"></span>
+    <span id="credit" class="inset"></span>
+  </footer>
+  <script src="app.js"></script>
 </body>
 </html>
