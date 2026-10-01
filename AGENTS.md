@@ -55,8 +55,8 @@ miles the list holds only what spilled over from the edge cells.
 
 Each place's `cuisine` comes from Google's primary type (`CUISINES` renames
 and merges a few). `GROUPS` sorts the cuisines into the groups of the site's
-first dropdown; the second dropdown drills into one group. A cuisine in
-no group shows under Other, and a run prints any it finds.
+cuisine checklist. A cuisine in no group shows under Other, and a run prints
+any it finds.
 
 `hours` is seven strings, Sunday first, such as `1100-1400,1700-2200`; a range
 that runs past midnight stays on the day it opens. `places.json` holds one
@@ -86,14 +86,21 @@ the page credits Google Maps and links each place to it.
 
 ## Site
 
-The look is plain and contemporary: a white panel floating over a full-bleed
-map on desktop, the map on top and a sheet below on phones, system fonts, one
-blue for data and near-black for the primary button. A retro management-sim
-skin (gray bevels, pixel font) was tried on 2026-10-01 and rejected as corny;
-keep the personality in the name and the simulation, not the chrome.
+The look is dark and calm: a flush panel beside the map, Geist for text and
+Geist Mono for labels and readouts (both self-hosted in `www/fonts/`), and one
+soft seafoam for data and the main action. It took three tries on 2026-10-01:
+a retro management-sim skin was "corny", a white clean-SaaS panel was "super
+generic", and a neon lime version of this dark look was "too aggressive".
+Keep the accent quiet.
 
-The map uses the standard OpenStreetMap tiles washed to light gray with a CSS
-filter. CARTO's light basemap would look better but now requires an API key.
+The map uses the standard OpenStreetMap tiles, inverted and drained of color
+with a CSS filter. CARTO's dark basemap would be cleaner but needs an API key.
+
+Filters: drive-time and quality sliders, a cuisine checklist, price toggles,
+visited/shortlist, and sort. The checklist ticks whole groups (`GROUPS` in
+`update.py`) or opens a group to tick single cuisines; ticking several means
+"any of these". Price toggles work the same way, and a place with no price
+from Google drops out once any price is picked.
 
 Clicking a pin or a row opens the restaurant card in place of the controls and
 list: stat bars, an open-now chip, links, a shortlist toggle, and "Log a
@@ -102,13 +109,10 @@ write visits itself. The shortlist lives in that browser's local storage. "Run
 simulation" picks from the shortlist when it holds two or more places,
 otherwise from what the filters show, weighted toward higher scores.
 
-Framing the map (fit, pan to a pin) goes through `clearOfPanel()` in `app.js`
-so nothing lands underneath the floating panel.
-
 The quality tiers (pin color and size) are cut at `tier_cuts` in
 `places.json`, which `update.py` sets so each outer tier holds about a fifth of
-the places. The blue ramp is one hue, light to dark; keep it that way if the
-colors change.
+the places. The pin ramp is one hue, dim to bright, because on a dark map the
+brightest reads as the most; keep it one hue if the colors change.
 
 ## Setup
 

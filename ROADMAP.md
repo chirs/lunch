@@ -13,10 +13,6 @@ Open work only; completed items are removed as they land (see git history).
 - [ ] Bump the score for editorial recognition (D Magazine, Eater, Texas Monthly, Michelin)
 - [ ] Drive times with lunch-hour traffic instead of free-flow
 
-## Site
-
-- [ ] Price filter
-
 ## Deferred
 
 - Group voting: needs a backend and shared state; the site is static.
