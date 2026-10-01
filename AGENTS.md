@@ -96,8 +96,10 @@ Keep the accent quiet.
 The map uses the standard OpenStreetMap tiles, inverted and drained of color
 with a CSS filter. CARTO's dark basemap would be cleaner but needs an API key.
 
-Filters: drive-time and quality sliders, a cuisine checklist, price toggles,
-visited/shortlist, and sort. The checklist ticks whole groups (`GROUPS` in
+Filters: a drive-time range (shortest and longest), a quality slider, a
+cuisine checklist, price toggles, visited/shortlist, and sort. The drive-time
+range is two native range inputs stacked so that only their thumbs take
+clicks; dragging and arrow keys work, clicking the bare track does not. The checklist ticks whole groups (`GROUPS` in
 `update.py`) or opens a group to tick single cuisines; ticking several means
 "any of these". Price toggles work the same way, and a place with no price
 from Google drops out once any price is picked.
