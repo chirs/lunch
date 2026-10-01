@@ -98,7 +98,7 @@ D Magazine cannot be used as a dataset. Its directory sits behind a bot
 challenge and its robots file disallows Anthropic's crawler, so nothing there
 was fetched. The nine came from search-engine results for dmagazine.com, one
 restaurant at a time, checked against the address. That works for the places
-D has written about (about half of the 32 tried) and not for small ones.
+D has written about (11 of the 30 tried) and not for small ones.
 
 A full fetch asks for `types`, and any fetch then looks up a summary for each
 place still Other (`add_summaries()`, Place Details with `editorialSummary`
