@@ -16,6 +16,7 @@ from update import (
     nearest_per_name,
     open_for_lunch,
     split,
+    tier_cuts,
     to_record,
 )
 
@@ -44,7 +45,7 @@ def google_place(**overrides):
         "priceLevel": "PRICE_LEVEL_MODERATE",
         "regularOpeningHours": {"periods": [hours(day, 11, 22) for day in range(7)]},
         "websiteUri": "http://www.dallasseoulgarden.com/",
-        "googleMapsUri": "https://maps.google.com/?cid=1",
+        "googleMapsUri": "https://maps.google.com/?cid=1&g_mp=CiVnb29nbGU",
     }
     place.update(overrides)
     return place
@@ -251,6 +252,15 @@ def test_scores_shrink_toward_the_average():
     assert places[1]["score"] == 4.5
     assert places[2]["score"] == 4.25
     assert places[0]["score"] < 4.6  # ten rave reviews don't beat a thousand good ones by much
+
+
+def test_tier_cuts_put_a_fifth_in_each_outer_tier():
+    scores = [4.0] * 5 + [4.1] * 15 + [4.2] * 30 + [4.3] * 30 + [4.4] * 12 + [4.5] * 8
+    assert tier_cuts([{"score": s} for s in scores]) == [4.2, 4.4]
+
+
+def test_tier_cuts_use_the_score_as_displayed():
+    assert tier_cuts([{"score": s} for s in (4.04, 4.16, 4.24, 4.31, 4.38)]) == [4.2, 4.4]
 
 
 def test_my_rating_replaces_the_score():

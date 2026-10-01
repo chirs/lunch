@@ -30,7 +30,7 @@ RAW = ROOT / "google_raw.json"
 ENV = ROOT / ".env"
 USER_AGENT = "lunch.edgemon.org (github.com/chirs/lunch)"
 
-SEARCH_MILES = 8
+SEARCH_MILES = 12  # about as far as MAX_MINUTES reaches along the freeways
 CELL_METERS = 1500
 MIN_CELL_METERS = 375  # two splits: 1500 -> 750 -> 375
 MAX_CALLS = 800  # 1,000 a month are free
@@ -40,7 +40,7 @@ MAX_CALLS = 800  # 1,000 a month are free
 BAR_TYPES = ["bar", "bar_and_grill", "sports_bar", "pub", "brewpub"]
 MAX_BAR_CALLS = 200
 PAGE_SIZE = 20
-MAX_MINUTES = 15
+MAX_MINUTES = 20
 MIN_REVIEWS = 20
 HAND_FIELDS = ("notes", "my_rating", "visited", "hidden")
 
@@ -299,7 +299,7 @@ def to_record(place):
         "lon": round(place["location"]["longitude"], 6),
         "rating": place["rating"],
         "reviews": place["userRatingCount"],
-        "maps": place["googleMapsUri"],
+        "maps": place["googleMapsUri"].split("&g_mp=")[0],  # the rest is tracking
     }
     if place.get("priceLevel") in PRICES:
         record["price"] = PRICES[place["priceLevel"]]
@@ -377,6 +377,19 @@ def add_scores(places):
             place.pop("score", None)
 
 
+def tier_cuts(places):
+    """Score cuts, in tenths, that put about a fifth of the places in each outer tier."""
+    scores = [round(p["score"], 1) for p in places if "score" in p]
+    steps = sorted(set(scores))
+
+    def off_a_fifth(count):
+        return abs(count / len(scores) - 0.2)
+
+    low = min(steps, key=lambda cut: off_a_fifth(sum(s < cut for s in scores)))
+    high = min(steps, key=lambda cut: off_a_fifth(sum(s >= cut for s in scores)))
+    return [low, high]
+
+
 def api_key():
     key = os.environ.get("GOOGLE_MAPS_API_KEY")
     if not key and ENV.exists():
@@ -444,6 +457,7 @@ def main():
     print(f"dropped {len(in_range) - len(kept)} farther branches of the same name")
 
     add_scores(kept)
+    data["tier_cuts"] = tier_cuts(kept)
     data["places"] = sorted(kept, key=lambda p: (p["name"].lower(), p["address"]))
     PLACES.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     print(f"{len(kept)} places written")
