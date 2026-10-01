@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Lunch Simulator: a map of lunch places within a 20-minute drive of the office
+Lunch Simulator: a map of lunch places within a 23-minute drive of the office
 at 1959 W Northwest Hwy, Dallas. Live at https://lunch.edgemon.org. `ROADMAP.md` holds
 open work.
 
@@ -30,7 +30,7 @@ and scores.
 A full run does five things:
 
 1. Finds restaurants with Google's Nearby Search over a grid of circles
-   covering 12 miles around the office. The API returns at most 20 per call, so
+   covering 14 miles around the office. The API returns at most 20 per call, so
    a full circle is split into smaller ones. This pass stops at 800 calls;
    1,000 a month are free.
 2. Makes a second pass for bar types, capped at 200 calls, keeping the ones
@@ -43,8 +43,9 @@ A full run does five things:
    20 reviews, are not open at noon on any weekday, or match the fast-food
    list in `CHAINS`.
 4. Gets free-flow drive minutes from the public OSRM server, drops anything
-   over 20, and keeps only the nearest branch of each name. These times ignore
-   traffic and parking.
+   over `MAX_MINUTES` (23), and keeps only the nearest branch of each name.
+   These times ignore traffic and parking. The cap is written to `places.json`
+   as `max_minutes`, which is where the site's sliders get their range.
 5. Scores each place: the Google rating pulled toward the dataset average,
    weighted by review count, so a 4.8 from 30 reviews ranks below a 4.6 from
    3,000.
@@ -63,9 +64,14 @@ Coverage, as of 2026-10-01. The data was built in three fetches the same day:
   first run's overlap had covered well) plus the Addison Belt Line strip. It
   stopped at 230 restaurant calls with 201 small cells still queued.
 
-So every reachable area now has at least its 20 most popular places, and the
-gaps that remain are the less popular places in dense spots. October's calls
-on the ratings tier came to about 1,110 against 1,000 free.
+So every area reachable in 20 minutes has at least its 20 most popular places,
+and the gaps that remain there are the less popular places in dense spots.
+October's calls on the ratings tier came to about 1,110 against 1,000 free.
+
+The cap then went from 20 to 23 minutes with no new search, to bring in places
+just past the line at Grapevine Mills, far north Dallas and south Lewisville.
+The 20 to 23 minute band therefore holds only what the earlier searches
+happened to catch, and has not been audited.
 
 `--near` is the cheap way to fill a known hole: it searches a small circle,
 adds the results to `google_raw.json`, and reruns the rest. `search_cells()`
