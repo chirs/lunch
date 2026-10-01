@@ -6,8 +6,10 @@ Open work only; completed items are removed as they land (see git history).
 
 ## Data
 
-- [ ] Run the first Google fetch (`./update.py`, needs `GOOGLE_MAPS_API_KEY` in `.env`); until then the site shows the 35-place seed list with no quality scores
+- [ ] Finish discovery in the dense spots: the first run stopped at its call caps with 716 restaurant cells and 70 bar cells unsearched
+- [ ] Skip grid cells whose centers are more than 15 minutes away (OSRM is free) so the Google calls go where they count; 882 of 3,425 places found were outside the search area
 - [ ] Add first-hand `notes` and `my_rating` as places get visited
+- [ ] Break up the "Other" cuisine (199 places Google only calls "restaurant")
 - [ ] Bump the score for editorial recognition (D Magazine, Eater, Texas Monthly, Michelin)
 - [ ] Drive times with lunch-hour traffic instead of free-flow
 

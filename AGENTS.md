@@ -14,24 +14,40 @@ open work.
 ## Data
 
 ```bash
-./update.py                 # full refresh; needs GOOGLE_MAPS_API_KEY in .env
-./update.py --skip-google   # drive times and scores only, uses no quota
+./update.py            # full refresh; needs GOOGLE_MAPS_API_KEY in .env
+./update.py --cached   # no Google calls; re-filters the saved results
 .venv/bin/python -m pytest
 ```
 
-A full run does four things:
+A full run costs about 1,000 Google calls, so use `--cached` for everything
+else: tuning the filters, recomputing scores after adding a `my_rating`. It
+reads `google_raw.json`, which a full run writes and git ignores. On a clone
+without that file, `--cached` leaves the list alone and only redoes drive times
+and scores.
+
+A full run does five things:
 
 1. Finds restaurants with Google's Nearby Search over a grid of circles
    covering 8 miles around the office. The API returns at most 20 per call, so
-   a full circle is split into smaller ones. Each call counts against 1,000
-   free a month; the script stops at 800 and prints how many it used.
-2. Drops places that are closed, have under 20 reviews, are not open at noon
-   on any weekday, or match the fast-food list in `CHAINS`.
-3. Gets free-flow drive minutes from the public OSRM server and drops anything
-   over 15. These ignore traffic and parking.
-4. Scores each place: the Google rating pulled toward the dataset average,
+   a full circle is split into smaller ones. This pass stops at 800 calls;
+   1,000 a month are free.
+2. Makes a second pass for bar types, capped at 200 calls, keeping the ones
+   Google says serve lunch. Icehouses and sports bars often lack the
+   "restaurant" type and the first pass misses them. Asking for `servesLunch`
+   bills as a different SKU with its own 1,000 free calls.
+3. Drops places that are closed, are not really restaurants (Google tags gas
+   stations and smoothie shops as restaurants; see `LUNCH_TYPES`), have under
+   20 reviews, are not open at noon on any weekday, or match the fast-food
+   list in `CHAINS`.
+4. Gets free-flow drive minutes from the public OSRM server, drops anything
+   over 15, and keeps only the nearest branch of each name. These times ignore
+   traffic and parking.
+5. Scores each place: the Google rating pulled toward the dataset average,
    weighted by review count, so a 4.8 from 30 reviews ranks below a 4.6 from
    3,000.
+
+Both passes hit their caps on the first run (2026-10-01), so the densest spots
+are missing their less popular places. Bachman Tacos & Grill is a known miss.
 
 `notes`, `my_rating` and `hidden` are hand-written per place and survive every
 run. `my_rating` replaces the computed score; `hidden: true` removes a place
@@ -44,8 +60,10 @@ the page credits Google Maps and links each place to it.
 
 ## Site
 
-The quality tiers (pin color and size) are `TIER_CUTS` in `index.html`. The
-blue ramp is one hue, light to dark; keep it that way if the colors change.
+The quality tiers (pin color and size) are `TIER_CUTS` in `index.html`, set so
+each outer tier holds about a fifth of the places; recheck them if the score
+spread moves. The blue ramp is one hue, light to dark; keep it that way if the
+colors change.
 
 ## Setup
 
