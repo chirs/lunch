@@ -215,15 +215,18 @@ def search_nearby(key, lat, lon, radius_m, types, field_mask=FIELD_MASK):
 
 
 def discover(center, miles, search, max_calls):
-    """Every place the search finds within miles of center, keyed by Google id.
+    """Every place the search finds within miles of center, keyed by Google id."""
+    grid = hex_grid(center["lat"], center["lon"], miles * 1609.34, CELL_METERS)
+    return search_cells([(lat, lon, CELL_METERS) for lat, lon in grid], search, max_calls)
+
+
+def search_cells(cells, search, max_calls):
+    """Search each (lat, lon, radius) circle, splitting any that comes back full.
 
     Cells are searched breadth-first, so when max_calls runs out the whole area
     has been covered coarsely and only the densest spots are short.
     """
-    cells = deque(
-        (lat, lon, CELL_METERS)
-        for lat, lon in hex_grid(center["lat"], center["lon"], miles * 1609.34, CELL_METERS)
-    )
+    cells = deque(cells)
     found, calls, truncated = {}, 0, 0
     while cells and calls < max_calls:
         lat, lon, radius = cells.popleft()
