@@ -16,6 +16,8 @@
   --tier-0: #86b6ef;
   --tier-1: #2a78d6;
   --tier-2: #104281;
+  --pin-ring: #ffffff;
+  --pin-visited: #0f172a;
   --gutter: 20px;
   --shadow: 0 10px 34px rgba(15, 23, 42, 0.16), 0 1px 3px rgba(15, 23, 42, 0.1);
 }
@@ -67,7 +69,7 @@ h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.015em; }
   text-transform: uppercase;
   color: var(--muted);
 }
-.slider output { font-size: 13px; font-variant-numeric: tabular-nums; }
+.slider output { font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .slider input { display: block; width: 100%; margin: 6px 0 0; accent-color: var(--ink); }
 #choices, #order { display: flex; gap: 8px; }
 #controls select {

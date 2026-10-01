@@ -11,8 +11,8 @@ let tierCuts = [4.3, 4.5];
 
 const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-const tierColors = [0, 1, 2].map(
-  n => getComputedStyle(document.documentElement).getPropertyValue(`--tier-${n}`).trim());
+const theme = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const tierColors = [0, 1, 2].map(n => theme(`--tier-${n}`));
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -243,7 +243,7 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
 
   for (const p of places) {
     p.marker = L.circleMarker([p.lat, p.lon], {
-      radius: TIER_RADIUS[tier(p)], color: p.visited ? '#0f172a' : '#fff', weight: 2,
+      radius: TIER_RADIUS[tier(p)], color: theme(p.visited ? '--pin-visited' : '--pin-ring'), weight: 2,
       fillColor: tierColors[tier(p)], fillOpacity: 1,
     });
     p.row = rowFor(p);
@@ -381,8 +381,8 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
     const maxMinutes = Number($('time').value);
     const quality = $('quality');
     const minScore = quality.value === quality.min ? null : Number(quality.value);
-    $('time-value').textContent = `within ${maxMinutes} min`;
-    $('quality-value').textContent = minScore === null ? 'any' : `${minScore.toFixed(1)} and up`;
+    $('time-value').textContent = `${maxMinutes} min`;
+    $('quality-value').textContent = minScore === null ? 'Any' : `${minScore.toFixed(1)}+`;
     const show = {
       '': () => true,
       new: p => !p.visited,
