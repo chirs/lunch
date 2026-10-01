@@ -15,9 +15,7 @@ Open work only; completed items are removed as they land (see git history).
 
 ## Site
 
-- [ ] "Pick for me" button that chooses a random place from the current filters
 - [ ] Price filter
-- [ ] Show weekday lunch hours
 
 ## Deferred
 

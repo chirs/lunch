@@ -1,13 +1,14 @@
 # AGENTS.md
 
-A map of lunch places within a 20-minute drive of the office at 1959 W
-Northwest Hwy, Dallas. Live at https://lunch.edgemon.org. `ROADMAP.md` holds
+Lunch Simulator: a map of lunch places within a 20-minute drive of the office
+at 1959 W Northwest Hwy, Dallas. Live at https://lunch.edgemon.org. `ROADMAP.md` holds
 open work.
 
 ## Layout
 
-- `www/` is the whole site: `index.html` (Leaflet from unpkg, OpenStreetMap
-  tiles, CSS and JS inline) and `places.json`. No build step.
+- `www/` is the whole site: `index.html`, `style.css`, `app.js`, the pixel
+  font in `fonts/`, and `places.json`. Leaflet comes from unpkg and the tiles
+  from OpenStreetMap. No build step.
 - `update.py` regenerates `places.json`. `tests/` covers the script and checks
   the data.
 
@@ -57,6 +58,11 @@ and merges a few). `GROUPS` sorts the cuisines into the groups of the site's
 first dropdown; the second dropdown drills into one group. A cuisine in
 no group shows under Other, and a run prints any it finds.
 
+`hours` is seven strings, Sunday first, such as `1100-1400,1700-2200`; a range
+that runs past midnight stays on the day it opens. `places.json` holds one
+place per line, which keeps it small and keeps diffs to the places that
+changed.
+
 `notes`, `my_rating`, `visited` and `hidden` are hand-written per place and
 survive every run. `my_rating` replaces the computed score; `visited` is `true`
 or a `YYYY-MM-DD` date; `hidden: true` removes a place from the site. The
@@ -79,6 +85,20 @@ Google's Places terms. That was a deliberate choice for a small personal site;
 the page credits Google Maps and links each place to it.
 
 ## Site
+
+The look is a 90s management sim: gray beveled windows, navy title bars, and
+the Silkscreen pixel font for titles, labels and buttons only. Anything meant
+to be read (names, notes, hours) stays in a plain sans-serif.
+
+Clicking a pin or a row opens the restaurant card in place of the list: stat
+bars, today's hours, links, a shortlist star, and LOG IT, which copies the
+`visit.py` command because the page cannot write visits itself. The shortlist
+lives in that browser's local storage. RUN SIMULATION picks from the shortlist
+when it holds two or more places, otherwise from what the filters show,
+weighted toward higher scores.
+
+Pins are squares drawn by a small extension of Leaflet's canvas renderer in
+`app.js`. It uses Leaflet internals, so recheck it before moving off 1.9.4.
 
 The quality tiers (pin color and size) are cut at `tier_cuts` in
 `places.json`, which `update.py` sets so each outer tier holds about a fifth of
