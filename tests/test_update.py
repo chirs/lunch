@@ -88,7 +88,6 @@ def test_split_covers_the_parent_circle():
 
 
 def test_discover_splits_full_cells_and_dedupes(monkeypatch):
-    monkeypatch.setattr(update, "SEARCH_MILES", 0.5)
     calls = []
 
     def search(lat, lon, radius):
@@ -97,7 +96,7 @@ def test_discover_splits_full_cells_and_dedupes(monkeypatch):
             return [{"id": f"p{n}"} for n in range(update.PAGE_SIZE)]
         return [{"id": "p0"}, {"id": f"small-{len(calls)}"}]
 
-    found = discover(OFFICE, search, max_calls=1000)
+    found = discover(OFFICE, 0.5, search, max_calls=1000)
     top = calls.count(update.CELL_METERS)
     assert calls.count(update.CELL_METERS / 2) == 7 * top
     assert len(found) == update.PAGE_SIZE + 7 * top
@@ -105,7 +104,7 @@ def test_discover_splits_full_cells_and_dedupes(monkeypatch):
 
 def test_discover_stops_at_the_call_cap():
     calls = []
-    discover(OFFICE, lambda lat, lon, radius: calls.append(radius) or [], max_calls=3)
+    discover(OFFICE, 8, lambda lat, lon, radius: calls.append(radius) or [], max_calls=3)
     assert len(calls) == 3
 
 
@@ -148,6 +147,7 @@ def test_is_chain(name, expected):
     [
         ({}, None),
         ({"businessStatus": "CLOSED_PERMANENTLY"}, "closed"),
+        ({"formattedAddress": "2400 Aviation Dr, DFW Airport, TX 75261, USA"}, "inside DFW Airport"),
         ({"primaryType": "convenience_store"}, "not a restaurant"),
         ({"primaryType": None}, "not a restaurant"),
         ({"primaryType": "sports_bar"}, None),

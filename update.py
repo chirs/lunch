@@ -4,6 +4,9 @@
     ./update.py            # everything; needs GOOGLE_MAPS_API_KEY in .env
     ./update.py --cached   # no Google calls: re-filter the last results saved
                            # in google_raw.json, then drive times and scores
+    ./update.py --near 32.9368,-97.0784,1.5
+                           # top up: search only within 1.5 miles of that point
+                           # and add what it finds to the saved results
 
 Google's Nearby Search returns at most 20 places per call with no paging, so
 discovery walks a hex grid of circles around the office and splits any circle
@@ -39,6 +42,9 @@ MAX_CALLS = 800  # 1,000 a month are free
 # a different SKU with its own 1,000 free calls.
 BAR_TYPES = ["bar", "bar_and_grill", "sports_bar", "pub", "brewpub"]
 MAX_BAR_CALLS = 200
+# Caps for a --near top-up, which covers a few square miles.
+NEAR_CALLS = 150
+NEAR_BAR_CALLS = 50
 PAGE_SIZE = 20
 MAX_MINUTES = 20
 MIN_REVIEWS = 20
@@ -67,6 +73,8 @@ PRICES = {
     "PRICE_LEVEL_EXPENSIVE": "$$$",
     "PRICE_LEVEL_VERY_EXPENSIVE": "$$$$",
 }
+# Everything at this zip is inside DFW Airport, mostly past security.
+AIRPORT_ZIP = " 75261"
 # National fast food and delivery pizza. Matched against the start of the name.
 CHAINS = (
     "arbys",
@@ -206,15 +214,15 @@ def search_nearby(key, lat, lon, radius_m, types, field_mask=FIELD_MASK):
         return json.load(response).get("places", [])
 
 
-def discover(office, search, max_calls):
-    """Every place the search finds within SEARCH_MILES, keyed by Google id.
+def discover(center, miles, search, max_calls):
+    """Every place the search finds within miles of center, keyed by Google id.
 
     Cells are searched breadth-first, so when max_calls runs out the whole area
     has been covered coarsely and only the densest spots are short.
     """
     cells = deque(
         (lat, lon, CELL_METERS)
-        for lat, lon in hex_grid(office["lat"], office["lon"], SEARCH_MILES * 1609.34, CELL_METERS)
+        for lat, lon in hex_grid(center["lat"], center["lon"], miles * 1609.34, CELL_METERS)
     )
     found, calls, truncated = {}, 0, 0
     while cells and calls < max_calls:
@@ -289,6 +297,8 @@ def is_chain(name):
 def drop_reason(place, office):
     if place.get("businessStatus", "OPERATIONAL") != "OPERATIONAL":
         return "closed"
+    if AIRPORT_ZIP in place.get("formattedAddress", ""):
+        return "inside DFW Airport"
     primary_type = place.get("primaryType") or ""
     if not primary_type.endswith("_restaurant") and primary_type not in LUNCH_TYPES:
         return "not a restaurant"
@@ -463,17 +473,18 @@ def api_key():
     return key
 
 
-def fetch(office):
+def fetch(center, miles, max_calls, max_bar_calls):
     key = api_key()
     print("restaurants:")
     found = discover(
-        office, lambda *cell: search_nearby(key, *cell, ["restaurant"]), MAX_CALLS
+        center, miles, lambda *cell: search_nearby(key, *cell, ["restaurant"]), max_calls
     )
     print("bars that serve lunch:")
     bars = discover(
-        office,
+        center,
+        miles,
         lambda *cell: search_nearby(key, *cell, BAR_TYPES, FIELD_MASK + ",places.servesLunch"),
-        MAX_BAR_CALLS,
+        max_bar_calls,
     )
     found.update({id: bar for id, bar in bars.items() if bar.get("servesLunch")})
     return found
@@ -481,15 +492,24 @@ def fetch(office):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--cached", action="store_true", help="reuse google_raw.json, no API calls")
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument("--cached", action="store_true", help="reuse google_raw.json, no API calls")
+    source.add_argument("--near", metavar="LAT,LON,MILES", help="search only around a point and add to google_raw.json")
     args = parser.parse_args()
 
     data = json.loads(PLACES.read_text())
     office = data["office"]
 
-    if not args.cached:
+    if args.near:
+        # A top-up keeps the date of the full fetch, which most ratings are from.
+        lat, lon, miles = map(float, args.near.split(","))
+        raw = json.loads(RAW.read_text())
+        raw["places"].update(fetch({"lat": lat, "lon": lon}, miles, NEAR_CALLS, NEAR_BAR_CALLS))
+        RAW.write_text(json.dumps(raw))
+    elif not args.cached:
         today = datetime.datetime.now().astimezone().date().isoformat()
-        RAW.write_text(json.dumps({"fetched": today, "places": fetch(office)}))
+        found = fetch(office, SEARCH_MILES, MAX_CALLS, MAX_BAR_CALLS)
+        RAW.write_text(json.dumps({"fetched": today, "places": found}))
     if RAW.exists():
         raw = json.loads(RAW.read_text())
         reasons = Counter()
