@@ -1,6 +1,6 @@
 # AGENTS.md
 
-A map of lunch places within a 15-minute drive of the office at 1959 W
+A map of lunch places within a 20-minute drive of the office at 1959 W
 Northwest Hwy, Dallas. Live at https://lunch.edgemon.org. `ROADMAP.md` holds
 open work.
 
@@ -28,7 +28,7 @@ and scores.
 A full run does five things:
 
 1. Finds restaurants with Google's Nearby Search over a grid of circles
-   covering 8 miles around the office. The API returns at most 20 per call, so
+   covering 12 miles around the office. The API returns at most 20 per call, so
    a full circle is split into smaller ones. This pass stops at 800 calls;
    1,000 a month are free.
 2. Makes a second pass for bar types, capped at 200 calls, keeping the ones
@@ -40,7 +40,7 @@ A full run does five things:
    20 reviews, are not open at noon on any weekday, or match the fast-food
    list in `CHAINS`.
 4. Gets free-flow drive minutes from the public OSRM server, drops anything
-   over 15, and keeps only the nearest branch of each name. These times ignore
+   over 20, and keeps only the nearest branch of each name. These times ignore
    traffic and parking.
 5. Scores each place: the Google rating pulled toward the dataset average,
    weighted by review count, so a 4.8 from 30 reviews ranks below a 4.6 from
@@ -48,6 +48,9 @@ A full run does five things:
 
 Both passes hit their caps on the first run (2026-10-01), so the densest spots
 are missing their less popular places. Bachman Tacos & Grill is a known miss.
+That run also searched only 8 miles out, before the limit went from 15 to 20
+minutes. The 20-minute reach is 9 to 12 miles along the freeways, so beyond 8
+miles the list holds only what spilled over from the edge cells.
 
 `notes`, `my_rating`, `visited` and `hidden` are hand-written per place and
 survive every run. `my_rating` replaces the computed score; `visited` is `true`
@@ -72,9 +75,9 @@ the page credits Google Maps and links each place to it.
 
 ## Site
 
-The quality tiers (pin color and size) are `TIER_CUTS` in `index.html`, set so
-each outer tier holds about a fifth of the places; recheck them if the score
-spread moves. The blue ramp is one hue, light to dark; keep it that way if the
+The quality tiers (pin color and size) are cut at `tier_cuts` in
+`places.json`, which `update.py` sets so each outer tier holds about a fifth of
+the places. The blue ramp is one hue, light to dark; keep it that way if the
 colors change.
 
 ## Setup
