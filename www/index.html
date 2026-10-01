@@ -142,7 +142,7 @@
       </label>
       <label class="slider" id="quality-control" hidden>
         <span class="slider-head"><span>Quality</span><output id="quality-value"></output></span>
-        <input id="quality" type="range" min="3.5" max="4.8" step="0.1" value="3.5">
+        <input id="quality" type="range" min="3.8" max="4.7" step="0.1" value="3.8">
       </label>
       <div id="choices">
         <select id="cuisine" aria-label="Cuisine"></select>
@@ -159,8 +159,9 @@
   <div id="map"></div>
 
   <script>
-    // Score at or above each cut moves a place up a tier.
-    const TIER_CUTS = [4.2, 4.5];
+    // Score at or above each cut moves a place up a tier. Tiers and the quality
+    // slider compare the score as displayed, rounded to one decimal.
+    const TIER_CUTS = [4.2, 4.4];
     const TIER_RADIUS = [5, 6.5, 8];
     const tierColors = [0, 1, 2].map(
       n => getComputedStyle(document.documentElement).getPropertyValue(`--tier-${n}`).trim());
@@ -183,7 +184,11 @@
 
     function tier(place) {
       if (place.score === undefined) return 1;
-      return TIER_CUTS.filter(cut => place.score >= cut).length;
+      return TIER_CUTS.filter(cut => shownScore(place) >= cut).length;
+    }
+
+    function shownScore(place) {
+      return Number(place.score.toFixed(1));
     }
 
     function minutesText(place) {
@@ -275,7 +280,7 @@
         $('time-value').textContent = `within ${maxMinutes} min`;
         $('quality-value').textContent = minScore === null ? 'any' : `${minScore.toFixed(1)} and up`;
         return places.filter(p =>
-          p.minutes <= maxMinutes && (minScore === null || p.score >= minScore));
+          p.minutes <= maxMinutes && (minScore === null || shownScore(p) >= minScore));
       }
 
       function render() {
@@ -308,7 +313,7 @@
       function fit(shown) {
         map.fitBounds(
           L.latLngBounds([[office.lat, office.lon], ...shown.map(p => [p.lat, p.lon])]),
-          { padding: [30, 30], maxZoom: 15 },
+          { padding: [16, 16], maxZoom: 15 },
         );
       }
 
