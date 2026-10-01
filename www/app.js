@@ -178,25 +178,20 @@ function saveShortlist(shortlist) {
   }
 }
 
-// One option per distinct key, most common first and "Other" last.
-function fill(select, places, key, selected, allLabel) {
-  const counts = {};
-  for (const p of places) counts[key(p)] = (counts[key(p)] || 0) + 1;
-  if (selected && !counts[selected]) counts[selected] = 0;
-  const names = Object.keys(counts).sort((a, b) =>
-    (a === 'Other') - (b === 'Other') || counts[b] - counts[a] || a.localeCompare(b));
-  select.replaceChildren(
-    new Option(allLabel, ''), ...names.map(name => new Option(`${name} (${counts[name]})`, name)));
-  select.value = selected;
-}
-
 function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
   if (tier_cuts) tierCuts = tier_cuts;
   places = places.filter(p => !p.hidden);
   for (const p of places) p.group = cuisine_groups[p.cuisine] ?? 'Other';
   const average = places.reduce((sum, p) => sum + p.rating, 0) / places.length;
   const shortlist = loadShortlist();
-  const state = { group: '', cuisine: '', show: '', sort: 'score', open: null, shown: [], simulating: false };
+  // Which cuisines belong to each group, for the checklist.
+  const members = {};
+  for (const p of places) (members[p.group] ??= new Set()).add(p.cuisine);
+  for (const group in members) members[group] = [...members[group]];
+  const state = {
+    cuisines: new Set(), prices: new Set(), expanded: new Set(),
+    show: '', sort: 'score', open: null, shown: [], simulating: false,
+  };
 
   const map = L.map('map', { preferCanvas: true, zoomControl: false });
   L.control.zoom({ position: 'topright' }).addTo(map);
@@ -215,14 +210,6 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
     interactive: false,
     zIndexOffset: 900,
   });
-
-  // On desktop the panel floats over the left of the map, so anything that
-  // frames the map has to stay clear of it.
-  function clearOfPanel() {
-    const panel = $('panel').getBoundingClientRect();
-    const floating = panel.height < innerHeight && panel.left > 0;
-    return { paddingTopLeft: [floating ? panel.right + 24 : 24, 24], paddingBottomRight: [24, 24] };
-  }
 
   function rowFor(place) {
     const row = el('li');
@@ -335,7 +322,7 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
     showCard(headline, stats(place), el('p', 'breakdown', breakdown(place, average)), actions, command, ...rest);
     const spot = [place.lat, place.lon];
     cursor.setLatLng(spot).addTo(map);
-    map.panInside(spot, clearOfPanel());
+    map.panInside(spot, { padding: [48, 48] });
   }
 
   // What a simulation chooses from: the shortlist once it holds two places,
@@ -361,7 +348,7 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
       state.open = null;
       showCard(body);
       const everything = L.latLngBounds([[office.lat, office.lon], ...candidates.map(p => [p.lat, p.lon])]);
-      map.fitBounds(everything, { ...clearOfPanel(), maxZoom: 15, animate: false });
+      map.fitBounds(everything, { padding: [24, 24], maxZoom: 15, animate: false });
       const steps = 16;
       for (let step = 0; step < steps; step++) {
         const p = step === steps - 1 ? winner : candidates[Math.floor(Math.random() * candidates.length)];
@@ -390,20 +377,86 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
       shortlist: p => shortlist.has(p.id),
     }[state.show];
     return places.filter(p =>
-      p.minutes <= maxMinutes && (minScore === null || shownScore(p) >= minScore) && show(p));
+      p.minutes <= maxMinutes && (minScore === null || shownScore(p) >= minScore) && show(p) &&
+      (!state.prices.size || state.prices.has(p.price)));
+  }
+
+  function check(name, count, checked, toggle, className = '') {
+    const row = el('div', `check-row ${className}`), label = el('label', 'check'), input = el('input');
+    input.type = 'checkbox';
+    input.checked = checked;
+    input.dataset.key = name + className;
+    input.addEventListener('change', () => {
+      toggle();
+      render();
+    });
+    label.append(input, el('span', 'check-name', name), el('span', 'count', String(count)));
+    row.append(label);
+    return row;
+  }
+
+  function cuisineSummary() {
+    if (!state.cuisines.size) return 'All cuisines';
+    const names = [];
+    for (const [group, cuisines] of Object.entries(members)) {
+      const ticked = cuisines.filter(c => state.cuisines.has(c));
+      if (ticked.length === cuisines.length) names.push(group);
+      else names.push(...ticked);
+    }
+    return names.length > 2 ? `${names.slice(0, 2).join(', ')} +${names.length - 2}` : names.join(', ');
+  }
+
+  // The cuisine checklist: one box per group, which opens to tick single
+  // cuisines. Counts follow the other filters. Nothing ticked means everything.
+  function renderCuisines(inRange) {
+    const counts = {}, groupCounts = {};
+    for (const p of inRange) {
+      counts[p.cuisine] = (counts[p.cuisine] || 0) + 1;
+      groupCounts[p.group] = (groupCounts[p.group] || 0) + 1;
+    }
+    const commonFirst = tally => (a, b) =>
+      (a === 'Other') - (b === 'Other') || (tally[b] || 0) - (tally[a] || 0) || a.localeCompare(b);
+
+    const list = $('cuisine-list'), scroll = list.scrollTop, focused = document.activeElement?.dataset?.key;
+    list.replaceChildren(...Object.keys(members).sort(commonFirst(groupCounts)).map(group => {
+      const cuisines = members[group].toSorted(commonFirst(counts));
+      const ticked = cuisines.filter(c => state.cuisines.has(c));
+      const all = check(group, groupCounts[group] || 0, ticked.length === cuisines.length, () => {
+        const add = ticked.length < cuisines.length;
+        for (const c of cuisines) add ? state.cuisines.add(c) : state.cuisines.delete(c);
+      });
+      all.querySelector('input').indeterminate = ticked.length > 0 && ticked.length < cuisines.length;
+      const block = el('div', 'check-group');
+      block.append(all);
+      if (cuisines.length > 1 && group !== 'Other') {
+        const open = state.expanded.has(group);
+        const more = button(open ? '−' : '+', 'expander');
+        more.setAttribute('aria-label', `${open ? 'Hide' : 'Show'} ${group} cuisines`);
+        more.setAttribute('aria-expanded', open);
+        more.dataset.key = `${group} expander`;
+        more.addEventListener('click', () => {
+          if (!state.expanded.delete(group)) state.expanded.add(group);
+          render();
+        });
+        all.append(more);
+        if (open) {
+          block.append(...cuisines.map(c => check(c, counts[c] || 0, state.cuisines.has(c), () => {
+            if (!state.cuisines.delete(c)) state.cuisines.add(c);
+          }, 'sub')));
+        }
+      }
+      return block;
+    }));
+    list.scrollTop = scroll;
+    if (focused) list.querySelector(`[data-key="${CSS.escape(focused)}"]`)?.focus();
+    $('cuisine-summary').textContent = cuisineSummary();
+    $('cuisine-clear').hidden = state.cuisines.size === 0;
   }
 
   function render() {
     const inRange = visible();
-
-    // The second dropdown drills into the chosen group, when there is more
-    // than one cuisine in it to choose from.
-    const inGroup = inRange.filter(p => !state.group || p.group === state.group);
-    fill($('group'), inRange, p => p.group, state.group, `All cuisines (${inRange.length})`);
-    fill($('cuisine'), inGroup, p => p.cuisine, state.cuisine, `All ${state.group} (${inGroup.length})`);
-    $('cuisine').hidden = !state.group || state.group === 'Other' || $('cuisine').options.length < 3;
-
-    const shown = inGroup.filter(p => !state.cuisine || p.cuisine === state.cuisine);
+    renderCuisines(inRange);
+    const shown = inRange.filter(p => !state.cuisines.size || state.cuisines.has(p.cuisine));
     const byTime = (a, b) => a.minutes - b.minutes;
     const byScore = (a, b) => b.score - a.score || byTime(a, b);
     shown.sort(state.sort === 'score' ? byScore : byTime);
@@ -416,6 +469,9 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
     for (const sortButton of document.querySelectorAll('#sort button')) {
       sortButton.setAttribute('aria-pressed', sortButton.dataset.sort === state.sort);
     }
+    for (const priceButton of $('prices').children) {
+      priceButton.setAttribute('aria-pressed', state.prices.has(priceButton.dataset.price));
+    }
     state.shown = shown;
     $('summary').textContent = `${shown.length.toLocaleString()} of ${places.length.toLocaleString()} places`;
     const choice = pool();
@@ -427,21 +483,28 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
   function fit(shown) {
     map.fitBounds(
       L.latLngBounds([[office.lat, office.lon], ...shown.map(p => [p.lat, p.lon])]),
-      { ...clearOfPanel(), maxZoom: 15 },
+      { padding: [24, 24], maxZoom: 15 },
     );
   }
 
   $('time').addEventListener('input', render);
   $('time').addEventListener('change', () => fit(render()));
   $('quality').addEventListener('input', render);
-  $('group').addEventListener('change', event => {
-    state.group = event.target.value;
-    state.cuisine = '';
+  $('cuisine-clear').addEventListener('click', () => {
+    state.cuisines.clear();
     render();
   });
-  $('cuisine').addEventListener('change', event => {
-    state.cuisine = event.target.value;
-    render();
+  for (const priceButton of $('prices').children) {
+    priceButton.addEventListener('click', () => {
+      const price = priceButton.dataset.price;
+      if (!state.prices.delete(price)) state.prices.add(price);
+      render();
+    });
+  }
+  // A click anywhere else closes the checklist. composedPath is fixed when the
+  // click starts, so it still holds after a re-render has replaced the rows.
+  document.addEventListener('click', event => {
+    if ($('cuisine-menu').open && !event.composedPath().includes($('cuisine-menu'))) $('cuisine-menu').open = false;
   });
   $('show').addEventListener('change', event => {
     state.show = event.target.value;
@@ -456,7 +519,9 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
   }
   $('simulate').addEventListener('click', simulate);
   document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && !$('card').hidden) closeCard();
+    if (event.key !== 'Escape') return;
+    if ($('cuisine-menu').open) $('cuisine-menu').open = false;
+    else if (!$('card').hidden) closeCard();
   });
 
   const labels = [`under ${tierCuts[0]}`, `${tierCuts[0]} to ${tierCuts[1]}`, `${tierCuts[1]} and up`];
