@@ -1,34 +1,51 @@
 # AGENTS.md
 
-A map of lunch places within a short drive of the office at 1959 W Northwest
-Hwy, Dallas. Live at https://lunch.edgemon.org. `ROADMAP.md` holds open work.
+A map of lunch places within a 15-minute drive of the office at 1959 W
+Northwest Hwy, Dallas. Live at https://lunch.edgemon.org. `ROADMAP.md` holds
+open work.
 
 ## Layout
 
 - `www/` is the whole site: `index.html` (Leaflet from unpkg, OpenStreetMap
   tiles, CSS and JS inline) and `places.json`. No build step.
-- `geocode.py` fills in coordinates. `tests/` checks the data.
+- `update.py` regenerates `places.json`. `tests/` covers the script and checks
+  the data.
 
-## Adding or changing a place
-
-`www/places.json` is hand-curated. Add an entry with `name`, `cuisine`,
-`address` and `price` (`$`, `$$` or `$$$`); `notes` and `url` are optional.
-Leave out `lat` and `lon`, then:
+## Data
 
 ```bash
-./geocode.py                    # fills missing coordinates from the address
-.venv/bin/python -m pytest      # fields present, no duplicates, within 5 miles
+./update.py                 # full refresh; needs GOOGLE_MAPS_API_KEY in .env
+./update.py --skip-google   # drive times and scores only, uses no quota
+.venv/bin/python -m pytest
 ```
 
-Never type coordinates from memory. If Nominatim has no match, find the place
-on openstreetmap.org and copy its coordinates.
+A full run does four things:
 
-`cuisine` is the filter chip, so keep it to one broad word that other entries
-share (`Mexican`, not `Tex-Mex`); put the detail in `notes`.
+1. Finds restaurants with Google's Nearby Search over a grid of circles
+   covering 8 miles around the office. The API returns at most 20 per call, so
+   a full circle is split into smaller ones. Each call counts against 1,000
+   free a month; the script stops at 800 and prints how many it used.
+2. Drops places that are closed, have under 20 reviews, are not open at noon
+   on any weekday, or match the fast-food list in `CHAINS`.
+3. Gets free-flow drive minutes from the public OSRM server and drops anything
+   over 15. These ignore traffic and parking.
+4. Scores each place: the Google rating pulled toward the dataset average,
+   weighted by review count, so a 4.8 from 30 reviews ranks below a 4.6 from
+   3,000.
 
-The first list came from OpenStreetMap and web search on 2026-10-01, with
-price tiers guessed. Nobody had eaten at these for the site, so treat entries
-without a personal note as unvetted.
+`notes`, `my_rating` and `hidden` are hand-written per place and survive every
+run. `my_rating` replaces the computed score; `hidden: true` removes a place
+from the site. The script prints any hand-annotated place that Google no
+longer returns instead of dropping it silently.
+
+Storing Google ratings and showing them on a non-Google map are both outside
+Google's Places terms. That was a deliberate choice for a small personal site;
+the page credits Google Maps and links each place to it.
+
+## Site
+
+The quality tiers (pin color and size) are `TIER_CUTS` in `index.html`. The
+blue ramp is one hue, light to dark; keep it that way if the colors change.
 
 ## Setup
 

@@ -6,18 +6,17 @@ Open work only; completed items are removed as they land (see git history).
 
 ## Data
 
-- [ ] Prune the seed list and replace the generic notes with first-hand ones
-- [ ] Check the guessed price tiers against real lunch tabs
-- [ ] Add opening hours, at least a flag for places that don't serve lunch every weekday
-- [ ] Add places missing from OpenStreetMap, especially taquerias along Harry Hines and Northwest Hwy
+- [ ] Run the first Google fetch (`./update.py`, needs `GOOGLE_MAPS_API_KEY` in `.env`); until then the site shows the 35-place seed list with no quality scores
+- [ ] Add first-hand `notes` and `my_rating` as places get visited
+- [ ] Bump the score for editorial recognition (D Magazine, Eater, Texas Monthly, Michelin)
+- [ ] Drive times with lunch-hour traffic instead of free-flow
 
 ## Site
 
-- [ ] "Pick for me" button that chooses a random place from the current filter
-- [ ] Drive time from the office instead of straight-line distance
-- [ ] Price filter alongside the cuisine chips
+- [ ] "Pick for me" button that chooses a random place from the current filters
+- [ ] Price filter
+- [ ] Show weekday lunch hours
 
 ## Deferred
 
 - Group voting: needs a backend and shared state; the site is static.
-- Google Places data: needs an API key and billing, and the key can't live on a static site.
