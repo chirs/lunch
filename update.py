@@ -46,6 +46,10 @@ MAX_BAR_CALLS = 200
 # Caps for a --near top-up, which covers a few square miles.
 NEAR_CALLS = 150
 NEAR_BAR_CALLS = 50
+# A place that is still "Other" gets one Place Details lookup for Google's
+# written summary of it. That is a third SKU, again with 1,000 free calls.
+SUMMARY_MASK = "editorialSummary,generativeSummary"
+SUMMARY_CALLS = 300
 PAGE_SIZE = 20
 MAX_MINUTES = 23  # written to places.json, where the site's sliders read it
 MIN_REVIEWS = 20
@@ -400,6 +404,28 @@ GROUPS = {
     "Other": ["Other", "Buffet", "Vegetarian", "Vegan", "Dessert", "Soup", "Australian"],
 }
 CUISINE_GROUPS = {cuisine: group for group, cuisines in GROUPS.items() for cuisine in cuisines}
+# Words that give a cuisine away in Google's written summary of a place: the
+# name hints, every cuisine's own name, and words that only turn up in prose.
+SUMMARY_HINTS = (
+    *NAME_HINTS,
+    *(
+        (rf"\b{re.escape(name.lower())}\b", name)
+        for name in CUISINE_GROUPS
+        if name not in ("Other", "Breakfast")
+    ),
+    # "for breakfast, lunch, and dinner" says nothing about the food.
+    (r"\bbreakfast\b(?!, lunch)", "Breakfast"),
+    (r"central american|south american|\blatin\b|venezuelan|arepa|dominican", "Latin American"),
+    (r"tex-mex|fajita|enchilada|burrito|quesadilla|tamale|menudo|gordita", "Mexican"),
+    (r"yemeni", "Middle Eastern"),
+    (r"bibimbap", "Korean"),
+    (r"gastropub|baked potato", "American"),
+    (r"brewpub|beer garden|\bpub\b", "Bar & Grill"),
+    (r"coffee", "Cafe"),
+)
+# Phrases that suggest American food but are used loosely ("Honduran comfort
+# food"), so they only count when nothing above matches.
+SUMMARY_FALLBACKS = ((r"southern|comfort (food|fare|eats)", "American"),)
 
 
 def cuisine_name(place_type):
@@ -408,18 +434,34 @@ def cuisine_name(place_type):
     return place_type.removesuffix("_restaurant").replace("_", " ").title()
 
 
+def plain_text(text):
+    return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().lower()
+
+
 def name_hint(name):
-    plain = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode().lower()
+    """The first hint that matches, in the order the hints are listed."""
+    plain = plain_text(name)
     return next((hint for pattern, hint in NAME_HINTS if re.search(pattern, plain)), None)
 
 
-def cuisine(primary_type, types=(), name=""):
+def summary_hint(summary):
+    """The hint that matches earliest in the sentence, which is usually its subject."""
+    plain = plain_text(summary)
+    for hints in (SUMMARY_HINTS, SUMMARY_FALLBACKS):
+        matches = [(found.start(), hint) for pattern, hint in hints if (found := re.search(pattern, plain))]
+        if matches:
+            return min(matches)[1]
+    return None
+
+
+def cuisine(primary_type, types=(), name="", summary=""):
     """The cuisine for Google's primary type, falling back when that is vague.
 
     Google calls a quarter of places just "restaurant". In order of trust, the
     fallbacks are: a telling word in the name; a firm cuisine among the
     place's other types; a soft one (those lists are not in order of
-    relevance, and "bar" or "american" turn up on everything); Fast Food.
+    relevance, and "bar" or "american" turn up on everything); a telling word
+    in Google's written summary; Fast Food.
     """
     primary = cuisine_name(primary_type)
     if primary not in VAGUE_CUISINES:
@@ -430,14 +472,43 @@ def cuisine(primary_type, types=(), name=""):
     firm = next((e for e in extras if e not in VAGUE_CUISINES | SOFT_CUISINES), None)
     soft = next((e for e in extras if e in SOFT_CUISINES), None)
     vague = next((e for e in [primary, *extras] if e != "Other"), "Other")
-    return name_hint(name) or firm or soft or vague
+    return name_hint(name) or firm or soft or summary_hint(summary) or vague
+
+
+def place_cuisine(place):
+    return cuisine(
+        place["primaryType"], place.get("types", ()), place["displayName"]["text"], place.get("summary", "")
+    )
+
+
+def summary_text(details):
+    """Google's description of a place: the editors' line if there is one, else the generated one."""
+    editorial = details.get("editorialSummary") or {}
+    generated = (details.get("generativeSummary") or {}).get("overview") or {}
+    return editorial.get("text") or generated.get("text") or ""
+
+
+def add_summaries(places, office, details, max_calls):
+    """Look up a summary for each kept place that is still "Other", once.
+
+    The summary is saved on the place even when it is empty, so a place Google
+    has nothing to say about is not asked for again.
+    """
+    todo = [
+        place
+        for place in places.values()
+        if "summary" not in place and drop_reason(place, office) is None and place_cuisine(place) == "Other"
+    ]
+    for place in todo[:max_calls]:
+        place["summary"] = summary_text(details(place["id"]))
+    print(f"looked up {min(len(todo), max_calls)} summaries; {max(0, len(todo) - max_calls)} left for next time")
 
 
 def to_record(place):
     record = {
         "id": place["id"],
         "name": place["displayName"]["text"],
-        "cuisine": cuisine(place["primaryType"], place.get("types", ()), place["displayName"]["text"]),
+        "cuisine": place_cuisine(place),
         "address": place["formattedAddress"].removesuffix(", USA"),
         "lat": round(place["location"]["latitude"], 6),
         "lon": round(place["location"]["longitude"], 6),
@@ -453,6 +524,21 @@ def to_record(place):
     if hours:
         record["hours"] = hours
     return record
+
+
+def share_cuisines(records):
+    """Give an "Other" branch the cuisine its same-named branches agree on most.
+
+    Google describes one Hudson House and not the next, so a chain's branches
+    can come out differently for no reason to do with the food.
+    """
+    known = {}
+    for record in records:
+        if record["cuisine"] != "Other":
+            known.setdefault(record["name"], Counter())[record["cuisine"]] += 1
+    for record in records:
+        if record["cuisine"] == "Other" and record["name"] in known:
+            record["cuisine"] = known[record["name"]].most_common(1)[0][0]
 
 
 def merge(existing, records):
@@ -558,6 +644,15 @@ def api_key():
     return key
 
 
+def place_details(key, place_id, field_mask):
+    request = urllib.request.Request(
+        f"https://places.googleapis.com/v1/places/{place_id}",
+        headers={"X-Goog-Api-Key": key, "X-Goog-FieldMask": field_mask},
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return json.load(response)
+
+
 def fetch(center, miles, max_calls, max_bar_calls):
     key = api_key()
     print("restaurants:")
@@ -590,11 +685,13 @@ def main():
         lat, lon, miles = map(float, args.near.split(","))
         raw = json.loads(RAW.read_text())
         raw["places"].update(fetch({"lat": lat, "lon": lon}, miles, NEAR_CALLS, NEAR_BAR_CALLS))
-        RAW.write_text(json.dumps(raw))
     elif not args.cached:
         today = datetime.datetime.now().astimezone().date().isoformat()
-        found = fetch(office, SEARCH_MILES, MAX_CALLS, MAX_BAR_CALLS)
-        RAW.write_text(json.dumps({"fetched": today, "places": found}))
+        raw = {"fetched": today, "places": fetch(office, SEARCH_MILES, MAX_CALLS, MAX_BAR_CALLS)}
+    if not args.cached:
+        key = api_key()
+        add_summaries(raw["places"], office, lambda id: place_details(key, id, SUMMARY_MASK), SUMMARY_CALLS)
+        RAW.write_text(json.dumps(raw))
     if RAW.exists():
         raw = json.loads(RAW.read_text())
         reasons = Counter()
@@ -607,6 +704,7 @@ def main():
                 records.append(to_record(place))
         for reason, count in reasons.most_common():
             print(f"  dropped {count}: {reason}")
+        share_cuisines(records)
         data["places"], lost = merge(data["places"], records)
         for place in lost:
             print(f"  hand-written entry no longer matched: {place['name']}")

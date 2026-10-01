@@ -233,6 +233,84 @@ def test_the_name_beats_a_listed_type():
     assert cuisine("fast_food_restaurant", ["chicken_restaurant", "hamburger_restaurant"], "Whataburger") == "Burgers"
 
 
+@pytest.mark.parametrize(
+    "summary, expected",
+    [
+        ("Upscale Indian restaurant with a lakeside patio and inventive cocktails.", "Indian"),
+        ("Steaks and seafood in a clubby, wood-paneled setting.", "Steakhouse"),  # earliest word wins
+        ("Casual spot for Tex-Mex fare and margaritas.", "Mexican"),
+        ("Relaxed counter-serve joint for Southern comfort food.", "American"),
+        ("French-inspired bakery chain with quiche and sandwiches.", "French"),
+        ("Lively hangout with a patio.", None),
+        ("", None),
+        # Real summaries that an earlier version of the rules got wrong.
+        ("Yemeni eatery with a menu of familiar dishes, including lamb and chicken entrees.", "Middle Eastern"),
+        ("Central American/El Salvadorean cafe for dishes such as pupusas and tacos.", "Latin American"),
+        ("Big portions of Latin comfort food including Dominican classics.", "Latin American"),
+        ("Casual restaurant serving Venezuelan comfort food including arepas, plus desserts.", "Latin American"),
+        ("Casual venue for breakfast, lunch, and dinner, including popular Honduran dishes.", "Latin American"),
+        ("Relaxed eatery dishing up comfort food such as fajitas.", "Mexican"),
+        ("Easygoing gastropub offering wood-fired pizza, American fare & many wines.", "American"),
+        ("Roomy brewpub at the Gaylord Texan Hotel for burgers, beer & sports.", "Bar & Grill"),
+        ("Casual eatery specializing in baked potatoes, chicken and steak.", "American"),
+        ("Organic coffee drinks & breakfast bites like avocado toast.", "Cafe"),
+        ("Down-to-earth restaurant serving all-day breakfast, sandwiches & toasts.", "Breakfast"),
+    ],
+)
+def test_summary_hint(summary, expected):
+    assert update.summary_hint(summary) == expected
+
+
+def test_share_cuisines_fills_in_other_branches():
+    records = [
+        {"name": "Hudson House", "cuisine": "Seafood"},
+        {"name": "Hudson House", "cuisine": "Other"},
+        {"name": "Monaco", "cuisine": "Other"},
+        {"name": "Original ChopShop", "cuisine": "Salads"},
+        {"name": "Original ChopShop", "cuisine": "Cafe"},
+        {"name": "Original ChopShop", "cuisine": "Salads"},
+        {"name": "Original ChopShop", "cuisine": "Other"},
+    ]
+    update.share_cuisines(records)
+    assert [r["cuisine"] for r in records] == ["Seafood", "Seafood", "Other", "Salads", "Cafe", "Salads", "Salads"]
+
+
+def test_cuisine_uses_the_summary_last():
+    summary = "Upscale Indian restaurant."
+    assert cuisine("restaurant", ["restaurant"], "Sanjh Restaurant & Bar", summary) == "Indian"
+    assert cuisine("restaurant", ["thai_restaurant"], "Sanjh", summary) == "Thai"
+    assert cuisine("restaurant", ["restaurant"], "Sanjh Taqueria", summary) == "Mexican"
+
+
+def test_summary_text_prefers_the_editorial_line():
+    both = {
+        "editorialSummary": {"text": "Editors' line."},
+        "generativeSummary": {"overview": {"text": "Generated line."}},
+    }
+    assert update.summary_text(both) == "Editors' line."
+    assert update.summary_text({"generativeSummary": {"overview": {"text": "Generated line."}}}) == "Generated line."
+    assert update.summary_text({}) == ""
+
+
+def test_add_summaries_asks_once_and_only_for_other_places(capsys):
+    places = {
+        "vague": google_place(id="vague", primaryType="restaurant", displayName={"text": "Hudson House"}),
+        "known": google_place(id="known"),
+        "closed": google_place(id="closed", primaryType="restaurant", businessStatus="CLOSED_PERMANENTLY"),
+    }
+    asked = []
+
+    def details(place_id):
+        asked.append(place_id)
+        return {"editorialSummary": {"text": "Oysters and American classics."}}
+
+    update.add_summaries(places, OFFICE, details, max_calls=10)
+    update.add_summaries(places, OFFICE, details, max_calls=10)
+    assert asked == ["vague"]
+    assert update.place_cuisine(places["vague"]) == "Seafood"
+    assert "summary" not in places["known"]
+
+
 def test_the_name_beats_fast_food():
     assert cuisine("fast_food_restaurant", ["fast_food_restaurant"], "Laredo Taco Company") == "Mexican"
 
