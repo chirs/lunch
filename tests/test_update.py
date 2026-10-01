@@ -176,6 +176,12 @@ def test_cuisine(primary_type, expected):
     assert cuisine(primary_type) == expected
 
 
+def test_each_cuisine_is_in_one_group():
+    listed = [cuisine for cuisines in update.GROUPS.values() for cuisine in cuisines]
+    assert len(listed) == len(set(listed))
+    assert update.CUISINE_GROUPS["Korean"] == "Asian"
+
+
 def test_to_record():
     assert to_record(google_place()) == {
         "id": "abc123",

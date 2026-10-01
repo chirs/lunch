@@ -141,6 +141,7 @@ CUISINES = {
     "kebab_shop": "Middle Eastern",
     "breakfast_restaurant": "Breakfast",
     "brunch_restaurant": "Breakfast",
+    "yakiniku_restaurant": "Japanese",
     **dict.fromkeys(BAR_TYPES, "Bar & Grill"),
 }
 
@@ -281,6 +282,32 @@ def drop_reason(place, office):
     if not open_for_lunch(place):
         return "not open for weekday lunch"
     return None
+
+
+# The site's first cuisine dropdown; the second drills into one group. A
+# cuisine listed nowhere lands in "Other", and a run names any such stragglers.
+GROUPS = {
+    "Mexican & Latin": [
+        "Mexican",
+        "Latin American",
+        "Cuban",
+        "Brazilian",
+        "Colombian",
+        "Argentinian",
+        "Peruvian",
+        "Caribbean",
+    ],
+    "American": ["American", "Barbecue", "Steakhouse", "Breakfast", "Diner", "Cajun", "Soul Food", "Hawaiian"],
+    "Burgers & Sandwiches": ["Burgers", "Chicken", "Sandwiches", "Fast Food", "Cafe", "Salads"],
+    "Bar & Grill": ["Bar & Grill"],
+    "Asian": ["Japanese", "Korean", "Chinese", "Thai", "Vietnamese", "Asian", "Indonesian", "Filipino"],
+    "South Asian": ["Indian", "Pakistani", "Bangladeshi", "Sri Lankan"],
+    "Italian & European": ["Pizza", "Italian", "French", "Irish", "German", "Spanish", "Tapas", "European", "Bistro"],
+    "Mediterranean": ["Mediterranean", "Middle Eastern", "Greek", "Halal", "Persian", "Turkish"],
+    "Seafood": ["Seafood"],
+    "Other": ["Other", "Buffet", "Vegetarian", "Dessert", "African", "Ethiopian"],
+}
+CUISINE_GROUPS = {cuisine: group for group, cuisines in GROUPS.items() for cuisine in cuisines}
 
 
 def cuisine(primary_type):
@@ -458,6 +485,10 @@ def main():
 
     add_scores(kept)
     data["tier_cuts"] = tier_cuts(kept)
+    data["cuisine_groups"] = CUISINE_GROUPS
+    ungrouped = sorted({p["cuisine"] for p in kept} - set(CUISINE_GROUPS))
+    if ungrouped:
+        print(f"cuisines in no group, shown under Other: {', '.join(ungrouped)}")
     data["places"] = sorted(kept, key=lambda p: (p["name"].lower(), p["address"]))
     PLACES.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     print(f"{len(kept)} places written")
