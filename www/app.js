@@ -1,13 +1,14 @@
 // Lunch Simulator. The data is places.json, which update.py writes.
 
 const TIER_RADIUS = [5, 6.5, 8];
-const MAX_MINUTES = 20;
 const SHORTLIST_KEY = 'lunch-shortlist';
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 // Score at or above each cut moves a place up a tier. Tiers and the quality
 // slider compare the score as displayed, rounded to one decimal. The cuts
 // come from places.json, where update.py sizes them to the data.
 let tierCuts = [4.3, 4.5];
+// The longest drive in the data, in minutes. Also from places.json.
+let maxMinutes = 20;
 
 const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -117,7 +118,7 @@ function stats(place) {
   const list = el('dl', 'stats');
   list.append(
     ...stat('Quality', (place.score - 3.5) / 1.5, place.score.toFixed(1), `tier-${tier(place)}`),
-    ...stat('Drive', (MAX_MINUTES - place.minutes) / MAX_MINUTES, minutesText(place)),
+    ...stat('Drive', (maxMinutes - place.minutes) / maxMinutes, minutesText(place)),
     // Review counts run from 20 to tens of thousands, so the bar is logarithmic.
     ...stat('Reviews', Math.max(0.05, (Math.log10(place.reviews) - 1.3) / 2.7), place.reviews.toLocaleString()),
     ...stat('Price', place.price ? place.price.length / 4 : 0, place.price || 'Not listed'),
@@ -178,8 +179,10 @@ function saveShortlist(shortlist) {
   }
 }
 
-function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
+function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups = {} }) {
   if (tier_cuts) tierCuts = tier_cuts;
+  if (max_minutes) maxMinutes = max_minutes;
+  $('time').max = $('time-min').max = maxMinutes;
   places = places.filter(p => !p.hidden);
   for (const p of places) p.group = cuisine_groups[p.cuisine] ?? 'Other';
   const average = places.reduce((sum, p) => sum + p.rating, 0) / places.length;
@@ -388,12 +391,12 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
   }
 
   function visible() {
-    const minMinutes = Number($('time-min').value), maxMinutes = Number($('time').value);
+    const shortest = Number($('time-min').value), longest = Number($('time').value);
     const quality = $('quality');
     const minScore = quality.value === quality.min ? null : Number(quality.value);
-    $('time-value').textContent = minMinutes ? `${minMinutes} to ${maxMinutes} min` : `Up to ${maxMinutes} min`;
+    $('time-value').textContent = shortest ? `${shortest} to ${longest} min` : `Up to ${longest} min`;
     $('quality-value').textContent = minScore === null ? 'Any' : `${minScore.toFixed(1)}+`;
-    fillTrack($('time'), minMinutes / MAX_MINUTES, maxMinutes / MAX_MINUTES);
+    fillTrack($('time'), shortest / maxMinutes, longest / maxMinutes);
     fillTrack(quality, (quality.value - quality.min) / (quality.max - quality.min), 1);
     const show = {
       '': () => true,
@@ -402,7 +405,7 @@ function start({ office, places, updated, tier_cuts, cuisine_groups = {} }) {
       shortlist: p => shortlist.has(p.id),
     }[state.show];
     return places.filter(p =>
-      p.minutes >= minMinutes && p.minutes <= maxMinutes &&
+      p.minutes >= shortest && p.minutes <= longest &&
       (minScore === null || shownScore(p) >= minScore) && show(p) &&
       (!state.prices.size || state.prices.has(p.price)));
   }

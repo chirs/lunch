@@ -33,7 +33,7 @@ RAW = ROOT / "google_raw.json"
 ENV = ROOT / ".env"
 USER_AGENT = "lunch.edgemon.org (github.com/chirs/lunch)"
 
-SEARCH_MILES = 12  # about as far as MAX_MINUTES reaches along the freeways
+SEARCH_MILES = 14  # about as far as MAX_MINUTES reaches along the freeways
 CELL_METERS = 1500
 MIN_CELL_METERS = 375  # two splits: 1500 -> 750 -> 375
 MAX_CALLS = 800  # 1,000 a month are free
@@ -46,7 +46,7 @@ MAX_BAR_CALLS = 200
 NEAR_CALLS = 150
 NEAR_BAR_CALLS = 50
 PAGE_SIZE = 20
-MAX_MINUTES = 20
+MAX_MINUTES = 23  # written to places.json, where the site's sliders read it
 MIN_REVIEWS = 20
 HAND_FIELDS = ("notes", "my_rating", "visited", "hidden")
 
@@ -340,7 +340,7 @@ GROUPS = {
     "Mediterranean": ["Mediterranean", "Middle Eastern", "Greek", "Halal", "Persian", "Turkish"],
     "Seafood": ["Seafood"],
     "African": ["African", "Ethiopian"],
-    "Other": ["Other", "Buffet", "Vegetarian", "Dessert"],
+    "Other": ["Other", "Buffet", "Vegetarian", "Vegan", "Dessert"],
 }
 CUISINE_GROUPS = {cuisine: group for group, cuisines in GROUPS.items() for cuisine in cuisines}
 
@@ -542,6 +542,7 @@ def main():
 
     add_scores(kept)
     data["tier_cuts"] = tier_cuts(kept)
+    data["max_minutes"] = MAX_MINUTES
     data["cuisine_groups"] = CUISINE_GROUPS
     ungrouped = sorted({p["cuisine"] for p in kept} - set(CUISINE_GROUPS))
     if ungrouped:
