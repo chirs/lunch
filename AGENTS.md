@@ -32,9 +32,11 @@ and scores.
 A full run does five things:
 
 1. Finds restaurants with Google's Nearby Search over a grid of circles
-   covering 14 miles around the office. The API returns at most 20 per call, so
-   a full circle is split into smaller ones. This pass stops at 800 calls;
-   1,000 a month are free.
+   (`reachable_cells()`): those within 14 miles of the office or home whose
+   centers OSRM puts within 26 minutes of either, the cap plus slack for a
+   circle's edge. That is about 370 circles. The API returns at most 20 per
+   call, so a full circle is split into smaller ones. This pass stops at 800
+   calls; 1,000 a month are free.
 2. Makes a second pass for bar types, capped at 200 calls, keeping the ones
    Google says serve lunch. Icehouses and sports bars often lack the
    "restaurant" type and the first pass misses them. Asking for `servesLunch`

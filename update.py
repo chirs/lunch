@@ -9,8 +9,8 @@
                            # and add what it finds to the saved results
 
 Google's Nearby Search returns at most 20 places per call with no paging, so
-discovery walks a hex grid of circles around the office and splits any circle
-that comes back full. Drive times are measured from both bases in places.json,
+discovery walks a hex grid of circles over the land within a drive of the
+office or home and splits any circle that comes back full. Drive times are measured from both bases in places.json,
 the office and home, and a place is kept if either is close enough. Hand-written fields (notes, my_rating, visited, hidden)
 survive every run.
 """
@@ -36,6 +36,9 @@ ENV = ROOT / ".env"
 USER_AGENT = "lunch.edgemon.org (github.com/chirs/lunch)"
 
 SEARCH_MILES = 14  # about as far as MAX_MINUTES reaches along the freeways
+# A cell is searched when its center is within this much more than MAX_MINUTES
+# of a base, since its edge can be closer than its center.
+CELL_SLACK_MINUTES = 3
 CELL_METERS = 1500
 MIN_CELL_METERS = 375  # two splits: 1500 -> 750 -> 375
 MAX_CALLS = 800  # 1,000 a month are free
@@ -274,10 +277,34 @@ def search_nearby(key, lat, lon, radius_m, types, field_mask=FIELD_MASK):
         return json.load(response).get("places", [])
 
 
-def discover(center, miles, search, max_calls):
-    """Every place the search finds within miles of center, keyed by Google id."""
-    grid = hex_grid(center["lat"], center["lon"], miles * 1609.34, CELL_METERS)
-    return search_cells([(lat, lon, CELL_METERS) for lat, lon in grid], search, max_calls)
+def grid(center, miles):
+    """Search circles covering everything within miles of center."""
+    centers = hex_grid(center["lat"], center["lon"], miles * 1609.34, CELL_METERS)
+    return [(lat, lon, CELL_METERS) for lat, lon in centers]
+
+
+def reachable_cells(bases):
+    """Search circles within SEARCH_MILES and a drive of at least one base.
+
+    A plain circle around one base wastes calls on land past the drive cap, and
+    misses the far side of a second base.
+    """
+    first = bases[0]
+    reach = SEARCH_MILES + max(haversine_miles(first["lat"], first["lon"], b["lat"], b["lon"]) for b in bases)
+    cells = [
+        cell
+        for cell in grid(first, reach)
+        if min(haversine_miles(b["lat"], b["lon"], cell[0], cell[1]) for b in bases) <= SEARCH_MILES
+    ]
+    points = [{"lat": lat, "lon": lon} for lat, lon, _ in cells]
+    near = [False] * len(cells)
+    for base in bases:
+        for n, minutes in enumerate(drive_minutes(base, points)):
+            if minutes is not None and minutes <= MAX_MINUTES + CELL_SLACK_MINUTES:
+                near[n] = True
+    kept = [cell for cell, ok in zip(cells, near) if ok]
+    print(f"searching {len(kept)} of {len(cells)} cells within {SEARCH_MILES} miles of a base")
+    return kept
 
 
 def search_cells(cells, search, max_calls):
@@ -698,16 +725,13 @@ def place_details(key, place_id, field_mask):
         return json.load(response)
 
 
-def fetch(center, miles, max_calls, max_bar_calls):
+def fetch(cells, max_calls, max_bar_calls):
     key = api_key()
     print("restaurants:")
-    found = discover(
-        center, miles, lambda *cell: search_nearby(key, *cell, ["restaurant"]), max_calls
-    )
+    found = search_cells(cells, lambda *cell: search_nearby(key, *cell, ["restaurant"]), max_calls)
     print("bars that serve lunch:")
-    bars = discover(
-        center,
-        miles,
+    bars = search_cells(
+        cells,
         lambda *cell: search_nearby(key, *cell, BAR_TYPES, FIELD_MASK + ",places.servesLunch"),
         max_bar_calls,
     )
@@ -731,10 +755,10 @@ def main():
         if args.near:
             # A top-up keeps the date of the full fetch, which most ratings are from.
             lat, lon, miles = map(float, args.near.split(","))
-            found = fetch({"lat": lat, "lon": lon}, miles, NEAR_CALLS, NEAR_BAR_CALLS)
+            found = fetch(grid({"lat": lat, "lon": lon}, miles), NEAR_CALLS, NEAR_BAR_CALLS)
             raw = {**previous, "places": {**previous["places"], **found}}
         else:
-            found = fetch(office, SEARCH_MILES, MAX_CALLS, MAX_BAR_CALLS)
+            found = fetch(reachable_cells(bases), MAX_CALLS, MAX_BAR_CALLS)
             raw = {"places": found}
         raw.setdefault("fetched", datetime.datetime.now().astimezone().date().isoformat())
         for id, place in found.items():

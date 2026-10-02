@@ -8,14 +8,15 @@ import update
 from update import (
     add_scores,
     cuisine,
-    discover,
     drop_reason,
+    grid,
     haversine_miles,
     hex_grid,
     is_chain,
     merge,
     nearest_per_name,
     open_for_lunch,
+    search_cells,
     split,
     tier_cuts,
     to_record,
@@ -87,7 +88,7 @@ def test_split_covers_the_parent_circle():
         assert min(meters(point, (lat, lon)) for lat, lon, _ in children) <= 750 * 1.01
 
 
-def test_discover_splits_full_cells_and_dedupes(monkeypatch):
+def test_search_cells_splits_full_cells_and_dedupes(monkeypatch):
     calls = []
 
     def search(lat, lon, radius):
@@ -96,16 +97,35 @@ def test_discover_splits_full_cells_and_dedupes(monkeypatch):
             return [{"id": f"p{n}"} for n in range(update.PAGE_SIZE)]
         return [{"id": "p0"}, {"id": f"small-{len(calls)}"}]
 
-    found = discover(OFFICE, 0.5, search, max_calls=1000)
+    found = search_cells(grid(OFFICE, 0.5), search, max_calls=1000)
     top = calls.count(update.CELL_METERS)
     assert calls.count(update.CELL_METERS / 2) == 7 * top
     assert len(found) == update.PAGE_SIZE + 7 * top
 
 
-def test_discover_stops_at_the_call_cap():
+def test_search_cells_stops_at_the_call_cap():
     calls = []
-    discover(OFFICE, 8, lambda lat, lon, radius: calls.append(radius) or [], max_calls=3)
+    search_cells(grid(OFFICE, 8), lambda lat, lon, radius: calls.append(radius) or [], max_calls=3)
     assert len(calls) == 3
+
+
+def test_reachable_cells_keeps_cells_within_a_drive_of_either_base(monkeypatch):
+    home = {"lat": 32.727, "lon": -96.837}
+
+    # Pretend the drive is four minutes a mile, the office's roads blocked to the south.
+    def drive(base, points):
+        return [
+            None if base is OFFICE and p["lat"] < OFFICE["lat"] - 0.1
+            else 4 * update.haversine_miles(base["lat"], base["lon"], p["lat"], p["lon"])
+            for p in points
+        ]
+
+    monkeypatch.setattr(update, "drive_minutes", drive)
+    cells = update.reachable_cells([OFFICE, home])
+    reach = (update.MAX_MINUTES + update.CELL_SLACK_MINUTES) / 4
+    for lat, lon, _ in cells:
+        assert min(update.haversine_miles(b["lat"], b["lon"], lat, lon) for b in [OFFICE, home]) <= reach
+    assert any(lat < home["lat"] - 0.05 for lat, _, _ in cells)
 
 
 @pytest.mark.parametrize(
