@@ -14,7 +14,8 @@ def test_fields(place):
     for field in ("name", "cuisine", "address", "lat", "lon"):
         assert place.get(field), f"missing {field}"
     assert place.get("price", "$") in ("$", "$$", "$$$", "$$$$")
-    assert 0 < place["minutes"] <= MAX_MINUTES, "run update.py"
+    times = [m for m in (place["minutes"], place.get("home_minutes")) if m is not None]
+    assert 0 < min(times) <= MAX_MINUTES, "run update.py"
     if "score" in place:
         assert 1 <= place["score"] <= 5
     if "my_rating" in place:

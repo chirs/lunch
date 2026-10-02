@@ -479,3 +479,4 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   #panel.filters-open #controls { padding-top: 2px; }
   #panel.card-open #filters-toggle { display: none; }
 }
+#controls > .slider-head { align-items: center; }

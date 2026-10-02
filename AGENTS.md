@@ -1,7 +1,8 @@
 # AGENTS.md
 
 Lunch Simulator: a map of lunch places within a 23-minute drive of the office
-at 1959 W Northwest Hwy, Dallas. Live at https://lunch.edgemon.org. `ROADMAP.md` holds
+at 1959 W Northwest Hwy, Dallas, or of the owner's home near Manus Dr and
+Vernon Ave in Oak Cliff. Live at https://lunch.edgemon.org. `ROADMAP.md` holds
 open work.
 
 ## Layout
@@ -44,8 +45,10 @@ A full run does five things:
    stations and smoothie shops as restaurants; see `LUNCH_TYPES`), have under
    20 reviews, are not open at noon on any weekday, or match the fast-food
    list in `CHAINS`.
-4. Gets free-flow drive minutes from the public OSRM server, drops anything
-   over `MAX_MINUTES` (23), and keeps only the nearest branch of each name.
+4. Gets free-flow drive minutes from the public OSRM server from each base in
+   `places.json` (`office` and `home`, written to each place as `minutes` and
+   `home_minutes`), drops anything over `MAX_MINUTES` (23) from both, and
+   keeps only the nearest branch of each name to each base.
    These times ignore traffic and parking. The cap is written to `places.json`
    as `max_minutes`, which is where the site's sliders get their range.
 5. Scores each place: the Google rating pulled toward the dataset average,
@@ -74,6 +77,16 @@ The cap then went from 20 to 23 minutes with no new search, to bring in places
 just past the line at Grapevine Mills, far north Dallas and south Lewisville.
 The 20 to 23 minute band therefore holds only what the earlier searches
 happened to catch, and has not been audited.
+
+Home was added on 2026-10-02. A `--cached` run first recovered the saved
+results within 23 minutes of home. Then a one-off run searched the 37 grid
+cells within 15 minutes of home that are over 20 minutes from the office,
+mostly south and southeast of home: 150 restaurant calls, which hit the cap
+with 146 small cells still queued, and 51 bar calls.
+So every cell within 15 minutes of home has its 20 most popular places, and
+home's 15 to 23 minute band south and east holds only what other searches
+caught. Those calls were billed, since October's ratings tier was already past
+its 1,000 free.
 
 `--near` is the cheap way to fill a known hole: it searches a small circle,
 adds the results to `google_raw.json`, and reruns the rest. `search_cells()`
@@ -156,6 +169,12 @@ Keep the accent quiet.
 
 The map uses the standard OpenStreetMap tiles, inverted and drained of color
 with a CSS filter. CARTO's dark basemap would be cleaner but needs an API key.
+
+"Drive from" switches every drive time between the office and home: the
+drive-time range, the Nearest sort, the readouts, the lunch-fit check, the
+Directions link and the base pin. It starts on the office at every load and
+is not remembered. A branch kept only for being nearest the other base drops
+out of the list. Switching reframes the map.
 
 Filters: a drive-time range (shortest and longest), a quality slider, a
 cuisine checklist, price toggles, visited/shortlist, and sort. The drive-time

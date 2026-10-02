@@ -10,7 +10,8 @@
 
 Google's Nearby Search returns at most 20 places per call with no paging, so
 discovery walks a hex grid of circles around the office and splits any circle
-that comes back full. Hand-written fields (notes, my_rating, visited, hidden)
+that comes back full. Drive times are measured from both bases in places.json,
+the office and home, and a place is kept if either is close enough. Hand-written fields (notes, my_rating, visited, hidden)
 survive every run.
 """
 
@@ -188,6 +189,7 @@ NAME_HINTS = (
     (r"korean", "Korean"),
     (r"chinese|dumpling|szechuan", "Chinese"),
     (r"asian", "Asian"),
+    (r"\bpoke\b", "Hawaiian"),
     (r"nepal|himalaya|kathmandu|thakali|sekuwa|\bmomo", "Nepalese"),
     (r"indian|\bdesi\b|kurry|masala|tiffin|paratha|biryani", "Indian"),
     (r"halal", "Halal"),
@@ -369,7 +371,7 @@ def is_chain(name):
     return plain.startswith(CHAINS)
 
 
-def drop_reason(place, office):
+def drop_reason(place, bases):
     if place.get("businessStatus", "OPERATIONAL") != "OPERATIONAL":
         return "closed"
     if any(address in place.get("formattedAddress", "") for address in AIRPORTS):
@@ -378,7 +380,7 @@ def drop_reason(place, office):
     if not primary_type.endswith("_restaurant") and primary_type not in LUNCH_TYPES:
         return "not a restaurant"
     location = place["location"]
-    miles = haversine_miles(office["lat"], office["lon"], location["latitude"], location["longitude"])
+    miles = min(haversine_miles(b["lat"], b["lon"], location["latitude"], location["longitude"]) for b in bases)
     if miles > SEARCH_MILES:
         return "outside the search area"
     if place.get("userRatingCount", 0) < MIN_REVIEWS:
@@ -527,7 +529,7 @@ def summary_text(details):
     return editorial.get("text") or generated.get("text") or ""
 
 
-def add_summaries(places, office, details, max_calls):
+def add_summaries(places, bases, details, max_calls):
     """Look up a summary for each kept place that is still "Other", once.
 
     The summary is saved on the place even when it is empty, so a place Google
@@ -536,7 +538,7 @@ def add_summaries(places, office, details, max_calls):
     todo = [
         place
         for place in places.values()
-        if "summary" not in place and drop_reason(place, office) is None and place_cuisine(place) == "Other"
+        if "summary" not in place and drop_reason(place, bases) is None and place_cuisine(place) == "Other"
     ]
     for place in todo[:max_calls]:
         place["summary"] = summary_text(details(place["id"]))
@@ -589,7 +591,7 @@ def merge(existing, records):
     old = {place["id"]: place for place in existing if "id" in place}
     for record in records:
         previous = old.get(record["id"], {})
-        for field in ("minutes", *HAND_FIELDS):
+        for field in ("minutes", "home_minutes", *HAND_FIELDS):
             if field in previous:
                 record[field] = previous[field]
     kept = {record["id"] for record in records}
@@ -601,28 +603,32 @@ def merge(existing, records):
     return records, lost
 
 
-def nearest_per_name(places):
-    """One pin per chain: the closest branch, plus any branch with hand fields."""
-    nearest = {}
-    for place in places:
-        best = nearest.get(place["name"])
-        if best is None or place["minutes"] < best["minutes"]:
-            nearest[place["name"]] = place
+def nearest_per_name(places, fields=("minutes",)):
+    """One pin per chain: the closest branch to each base, plus any branch with hand fields."""
+    nearest = set()
+    for field in fields:
+        best = {}
+        for place in places:
+            if place.get(field) is not None and (
+                place["name"] not in best or place[field] < best[place["name"]][field]
+            ):
+                best[place["name"]] = place
+        nearest |= {id(place) for place in best.values()}
     return [
         place
         for place in places
-        if nearest[place["name"]] is place or any(place.get(field) for field in HAND_FIELDS)
+        if id(place) in nearest or any(place.get(field) for field in HAND_FIELDS)
     ]
 
 
-def drive_minutes(office, places):
-    """Free-flow driving minutes from the office, or None where OSRM finds no route."""
+def drive_minutes(origin, places):
+    """Free-flow driving minutes from origin, or None where OSRM finds no route."""
     minutes = []
     for start in range(0, len(places), 100):
         if start:
             time.sleep(1)
         batch = places[start : start + 100]
-        coords = ";".join(f"{p['lon']},{p['lat']}" for p in [office, *batch])
+        coords = ";".join(f"{p['lon']},{p['lat']}" for p in [origin, *batch])
         request = urllib.request.Request(
             f"https://router.project-osrm.org/table/v1/driving/{coords}?sources=0",
             headers={"User-Agent": USER_AGENT},
@@ -718,6 +724,7 @@ def main():
 
     data = json.loads(PLACES.read_text())
     office = data["office"]
+    bases = [office, data["home"]] if "home" in data else [office]
 
     if not args.cached:
         previous = json.loads(RAW.read_text()) if RAW.exists() else {"places": {}}
@@ -735,14 +742,14 @@ def main():
             if "summary" in saved:
                 place["summary"] = saved["summary"]
         key = api_key()
-        add_summaries(raw["places"], office, lambda id: place_details(key, id, SUMMARY_MASK), SUMMARY_CALLS)
+        add_summaries(raw["places"], bases, lambda id: place_details(key, id, SUMMARY_MASK), SUMMARY_CALLS)
         RAW.write_text(json.dumps(raw))
     if RAW.exists():
         raw = json.loads(RAW.read_text())
         reasons = Counter()
         records = []
         for place in raw["places"].values():
-            reason = drop_reason(place, office)
+            reason = drop_reason(place, bases)
             if reason:
                 reasons[reason] += 1
             else:
@@ -760,12 +767,17 @@ def main():
         if place.get("my_cuisine"):
             place["cuisine"] = place["my_cuisine"]
 
-    untimed = [p for p in data["places"] if "minutes" not in p]
-    for place, minutes in zip(untimed, drive_minutes(office, untimed)):
-        place["minutes"] = minutes
-    in_range = [p for p in data["places"] if p["minutes"] is not None and p["minutes"] <= MAX_MINUTES]
-    print(f"timed {len(untimed)} places; dropped {len(data['places']) - len(in_range)} over {MAX_MINUTES} minutes")
-    kept = nearest_per_name(in_range)
+    fields = ["minutes", "home_minutes"][: len(bases)]
+    for base, field in zip(bases, fields):
+        untimed = [p for p in data["places"] if field not in p]
+        for place, minutes in zip(untimed, drive_minutes(base, untimed)):
+            place[field] = minutes
+        print(f"timed {len(untimed)} places for {field}")
+    in_range = [
+        p for p in data["places"] if any(p[f] is not None and p[f] <= MAX_MINUTES for f in fields)
+    ]
+    print(f"dropped {len(data['places']) - len(in_range)} over {MAX_MINUTES} minutes from every base")
+    kept = nearest_per_name(in_range, fields)
     print(f"dropped {len(in_range) - len(kept)} farther branches of the same name")
 
     add_scores(kept)

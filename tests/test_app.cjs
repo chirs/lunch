@@ -144,3 +144,19 @@ test('search ignores accents and apostrophes', () => {
   assert.deepEqual(names('juarez'), ['Taquería El Juárez']);
   assert.deepEqual(names('joes crab shack'), ["Joe's Crab-Shack"]);
 });
+
+test('a base sets the drive times and the nearest branch of each name', () => {
+  const places = [
+    { name: 'Mi Cocina', drive: { office: 5, home: 20 } },
+    { name: 'Mi Cocina', drive: { office: 15, home: 4 } },
+    { name: 'Mi Cocina', drive: { office: 9, home: 9 }, notes: 'The one with the patio.' },
+    { name: 'Lone Star', drive: { office: 7, home: null } },
+  ];
+  app.useBase(places, 'home');
+  assert.deepEqual(places.map(p => p.minutes), [20, 4, 9, Infinity]);
+  assert.deepEqual(places.map(p => p.branch), [false, true, true, true]);
+  assert.equal(app.minutesText(places[3]), 'No route');
+  assert.equal(app.fitsLunch({ ...places[3], hours: Array(7).fill('0000-2400') }, 45), false);
+  app.useBase(places, 'office');
+  assert.deepEqual(places.map(p => p.branch), [true, false, true, true]);
+});

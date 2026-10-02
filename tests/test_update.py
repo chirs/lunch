@@ -160,7 +160,12 @@ def test_is_chain(name, expected):
     ],
 )
 def test_drop_reason(overrides, expected):
-    assert drop_reason(google_place(**overrides), OFFICE) == expected
+    assert drop_reason(google_place(**overrides), [OFFICE]) == expected
+
+
+def test_drop_reason_counts_distance_from_any_base():
+    far = google_place(location={"latitude": 33.2, "longitude": -96.9})
+    assert drop_reason(far, [OFFICE, {"lat": 33.2, "lon": -96.9}]) is None
 
 
 @pytest.mark.parametrize(
@@ -208,6 +213,7 @@ def test_cuisine_falls_back_to_other_types(primary_type, types, expected):
     "name, expected",
     [
         ("Pupuseria Y Antojitos", "Salvadoran"),
+        ("Oh My Poke", "Hawaiian"),
         ("El Olanchano restaurante hondureño", "Honduran"),
         ("La Campiña Salvadoreña", "Salvadoran"),
         ("Sabor Llanero TX", "Venezuelan"),
@@ -307,8 +313,8 @@ def test_add_summaries_asks_once_and_only_for_other_places(capsys):
         asked.append(place_id)
         return {"editorialSummary": {"text": "Oysters and American classics."}}
 
-    update.add_summaries(places, OFFICE, details, max_calls=10)
-    update.add_summaries(places, OFFICE, details, max_calls=10)
+    update.add_summaries(places, [OFFICE], details, max_calls=10)
+    update.add_summaries(places, [OFFICE], details, max_calls=10)
     assert asked == ["vague"]
     assert update.place_cuisine(places["vague"]) == "Seafood"
     assert "summary" not in places["known"]
@@ -481,6 +487,16 @@ def test_nearest_per_name_keeps_hand_annotated_branches():
         {"name": "Mi Cocina", "minutes": 6.0},
     ]
     assert nearest_per_name(places) == places
+
+
+def test_nearest_per_name_keeps_the_closest_branch_to_each_base():
+    places = [
+        {"name": "Whataburger", "minutes": 4.0, "home_minutes": 30.0},
+        {"name": "Whataburger", "minutes": 25.0, "home_minutes": 3.0},
+        {"name": "Whataburger", "minutes": 9.0, "home_minutes": 9.0},
+        {"name": "Keller's Drive-In", "minutes": 7.0, "home_minutes": None},
+    ]
+    assert nearest_per_name(places, ["minutes", "home_minutes"]) == [places[0], places[1], places[3]]
 
 
 def test_scores_shrink_toward_the_average():

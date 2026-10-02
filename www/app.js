@@ -48,6 +48,7 @@ function tier(place) {
 }
 
 function minutesText(place) {
+  if (!Number.isFinite(place.minutes)) return 'No route';
   return `${Math.max(1, Math.round(place.minutes))} min`;
 }
 
@@ -114,7 +115,7 @@ function openStatus(hours, now = new Date()) {
 }
 
 function fitsLunch(place, mealMinutes, now = new Date(), clockTimes = new Map()) {
-  if (!place.hours) return false;
+  if (!place.hours || !Number.isFinite(place.minutes)) return false;
   const schedule = place.hours.map(ranges);
   const arrival = now.getTime() + place.minutes * 60000;
   const finish = arrival + mealMinutes * 60000;
@@ -180,11 +181,26 @@ function weekTable(hours, today) {
   return details;
 }
 
-function directionsUrl(place, office) {
+function directionsUrl(place, base) {
   return 'https://www.google.com/maps/dir/?api=1' +
-    `&origin=${office.lat},${office.lon}` +
+    `&origin=${base.lat},${base.lon}` +
     `&destination=${encodeURIComponent(place.name + ', ' + place.address)}` +
     (place.id ? `&destination_place_id=${place.id}` : '');
+}
+
+// Points every place's minutes at one base, and marks the branch of each name
+// nearest to it; farther branches of the same name stay out of the list unless
+// hand-annotated, as update.py does for a single base.
+function useBase(places, base) {
+  const nearest = new Map();
+  for (const p of places) {
+    p.minutes = p.drive[base] ?? Infinity;
+    const best = nearest.get(p.name);
+    if (!best || p.minutes < best.minutes) nearest.set(p.name, p);
+  }
+  for (const p of places) {
+    p.branch = nearest.get(p.name) === p || Boolean(p.notes || p.my_rating || p.my_cuisine || p.visited);
+  }
 }
 
 // visit.py ignores punctuation when matching, so drop what a shell would trip on.
@@ -234,11 +250,13 @@ function saveShortlist(shortlist) {
   }
 }
 
-function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups = {} }) {
+function start({ office, home, places, updated, tier_cuts, max_minutes, cuisine_groups = {} }) {
   if (tier_cuts) tierCuts = tier_cuts;
   if (max_minutes) maxMinutes = max_minutes;
   $('time').max = $('time-min').max = maxMinutes;
   places = places.filter(p => !p.hidden);
+  for (const p of places) p.drive = { office: p.minutes, home: p.home_minutes };
+  const bases = { office, home };
   for (const p of places) p.group = cuisine_groups[p.cuisine] ?? 'Other';
   const average = places.reduce((sum, p) => sum + p.rating, 0) / places.length;
   const shortlist = loadShortlist();
@@ -248,7 +266,7 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
   for (const group in members) members[group] = [...members[group]];
   const state = {
     cuisines: new Set(), prices: new Set(), expanded: new Set(),
-    show: '', sort: 'score', query: '', inView: false, open: null, shown: [], simulating: false,
+    base: 'office', show: '', sort: 'score', query: '', inView: false, open: null, shown: [], simulating: false,
   };
 
   const map = L.map('map', { preferCanvas: true, zoomControl: false });
@@ -258,10 +276,16 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   }).addTo(map);
   const pins = L.layerGroup().addTo(map);
-  L.marker([office.lat, office.lon], {
-    icon: L.divIcon({ className: '', html: '<div class="office-pin"></div>', iconSize: [18, 18] }),
-    zIndexOffset: 1000,
-  }).addTo(map).bindTooltip(`${office.name}: ${office.address}`);
+  // One pin for the base the drive times are from.
+  const basePins = {};
+  for (const name in bases) {
+    const base = bases[name];
+    basePins[name] = L.marker([base.lat, base.lon], {
+      icon: L.divIcon({ className: '', html: '<div class="office-pin"></div>', iconSize: [18, 18] }),
+      zIndexOffset: 1000,
+    }).bindTooltip(`${base.name}: ${base.address}`);
+  }
+  basePins.office.addTo(map);
   // Marks the open restaurant, and jumps around during a simulation.
   const cursor = L.marker([office.lat, office.lon], {
     icon: L.divIcon({ className: '', html: '<div class="cursor"></div>', iconSize: [34, 34] }),
@@ -286,6 +310,16 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
     return row;
   }
 
+  // Rows show the drive from the current base, so they are rebuilt on a switch.
+  function buildRow(p) {
+    p.row = rowFor(p);
+    markStar(p);
+    p.row.addEventListener('click', () => openCard(p));
+    p.row.addEventListener('keydown', event => {
+      if (event.key === 'Enter') openCard(p);
+    });
+  }
+
   function markStar(place) {
     place.row.querySelector('.name').textContent = (shortlist.has(place.id) ? '★ ' : '') + place.name;
   }
@@ -300,14 +334,10 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
       tip.append(el('div', 'name', p.name), el('div', 'meta', `${meta(p)} · ${p.score.toFixed(1)}`));
       return tip;
     }, { direction: 'top', offset: [0, -TIER_RADIUS[tier(p)] - 2], className: 'pin-tip' });
-    p.row = rowFor(p);
-    markStar(p);
     p.marker.on('click', () => openCard(p));
-    p.row.addEventListener('click', () => openCard(p));
-    p.row.addEventListener('keydown', event => {
-      if (event.key === 'Enter') openCard(p);
-    });
   }
+  useBase(places, state.base);
+  for (const p of places) buildRow(p);
 
   function showCard(...content) {
     const top = el('div', 'card-top');
@@ -352,7 +382,7 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
     headline.append(mealNote);
 
     const actions = el('div', 'actions');
-    actions.append(link('Directions', directionsUrl(place, office), 'button primary'));
+    actions.append(link('Directions', directionsUrl(place, bases[state.base]), 'button primary'));
     if (place.maps) actions.append(link('Google Maps', place.maps));
     if (place.url) actions.append(link('Website', place.url));
 
@@ -479,7 +509,7 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
       visited: p => Boolean(p.visited),
       shortlist: p => shortlist.has(p.id),
     }[state.show];
-    return places.filter(p =>
+    return places.filter(p => p.branch &&
       p.minutes >= shortest && p.minutes <= longest &&
       (minScore === null || shownScore(p) >= minScore) && show(p) &&
       (!state.prices.size || state.prices.has(p.price)));
@@ -590,6 +620,9 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
     for (const sortButton of document.querySelectorAll('#sort button')) {
       sortButton.setAttribute('aria-pressed', sortButton.dataset.sort === state.sort);
     }
+    for (const baseButton of document.querySelectorAll('#base button')) {
+      baseButton.setAttribute('aria-pressed', baseButton.dataset.base === state.base);
+    }
     for (const priceButton of $('prices').children) {
       priceButton.setAttribute('aria-pressed', state.prices.has(priceButton.dataset.price));
     }
@@ -602,6 +635,7 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
       [...state.prices].sort((a, b) => a.length - b.length).join(' '),
       { new: 'not visited', visited: 'visited', shortlist: 'shortlist' }[state.show],
       state.inView ? 'map view' : '',
+      state.base === 'home' ? 'from home' : '',
     ].filter(Boolean).join(' · ');
     $('summary').textContent = found
       ? `${found.length.toLocaleString()} ${found.length === 1 ? 'match' : 'matches'} · filters paused`
@@ -611,8 +645,9 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
   }
 
   function fit(shown) {
+    const base = bases[state.base];
     map.fitBounds(
-      L.latLngBounds([[office.lat, office.lon], ...shown.map(p => [p.lat, p.lon])]),
+      L.latLngBounds([[base.lat, base.lon], ...shown.map(p => [p.lat, p.lon])]),
       { padding: [24, 24], maxZoom: 15 },
     );
   }
@@ -691,6 +726,20 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
       $('list').scrollTop = 0;
     });
   }
+  // Switching base swaps every drive time, so rows, pins and the open card are
+  // redone and the map reframes around the new answer.
+  for (const baseButton of document.querySelectorAll('#base button')) {
+    baseButton.addEventListener('click', () => {
+      if (state.simulating || baseButton.dataset.base === state.base) return;
+      basePins[state.base].remove();
+      state.base = baseButton.dataset.base;
+      basePins[state.base].addTo(map);
+      useBase(places, state.base);
+      for (const p of places) buildRow(p);
+      if (state.open) openCard(state.open);
+      reframe();
+    });
+  }
   $('simulate').addEventListener('click', simulate);
   $('meal-duration').addEventListener('change', updateLunch);
   setInterval(() => {
@@ -720,7 +769,7 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
   fit(render());
 }
 
-fetch('places.json').then(response => response.json()).then(start).catch(error => {
+fetch('places.json', { cache: 'no-cache' }).then(response => response.json()).then(start).catch(error => {
   console.error(error);
   $('summary').textContent = 'Could not load the places. Reload to try again.';
 });
