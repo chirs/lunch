@@ -265,6 +265,14 @@ h1::before { content: ""; width: 9px; height: 9px; border-radius: 50%; backgroun
 #list li { padding: 12px var(--gutter); border-bottom: 1px solid var(--line); cursor: pointer; }
 #list li:hover { background: var(--surface); }
 #list li.selected { background: var(--accent-soft); box-shadow: inset 2px 0 var(--accent); }
+#list li.empty, #list li.empty:hover {
+  padding: 24px var(--gutter);
+  color: var(--muted);
+  font-size: 13px;
+  background: none;
+  border-bottom: 0;
+  cursor: default;
+}
 .row { display: flex; justify-content: space-between; gap: 16px; }
 .row-main { min-width: 0; }
 .row-side { flex: none; text-align: right; white-space: nowrap; }

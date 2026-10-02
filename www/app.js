@@ -487,6 +487,8 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
     $('cuisine-clear').hidden = state.cuisines.size === 0;
   }
 
+  const nothing = el('li', 'empty', 'Nothing matches. Loosen a filter or move the map.');
+
   function render() {
     // "Only what's in the map view" narrows the list, the counts and the
     // simulation, but not the pins: those stay, so panning still finds them.
@@ -499,7 +501,7 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
     const byTime = (a, b) => a.minutes - b.minutes;
     const byScore = (a, b) => b.score - a.score || byTime(a, b);
     shown.sort(state.sort === 'score' ? byScore : byTime);
-    $('list').replaceChildren(...shown.map(p => p.row));
+    $('list').replaceChildren(...(shown.length ? shown.map(p => p.row) : [nothing]));
 
     // Best last, so the strongest pins draw on top.
     pins.clearLayers();
@@ -614,4 +616,7 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
   fit(render());
 }
 
-fetch('places.json').then(response => response.json()).then(start);
+fetch('places.json').then(response => response.json()).then(start).catch(error => {
+  console.error(error);
+  $('summary').textContent = 'Could not load the places. Reload to try again.';
+});
