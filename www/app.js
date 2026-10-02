@@ -512,6 +512,15 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
       priceButton.setAttribute('aria-pressed', state.prices.has(priceButton.dataset.price));
     }
     state.shown = shown;
+    // What the folded-up filter bar says on a small screen.
+    $('filters-summary').textContent = [
+      $('time-value').textContent,
+      $('quality').value === $('quality').min ? '' : $('quality-value').textContent,
+      state.cuisines.size ? $('cuisine-summary').textContent : '',
+      [...state.prices].sort((a, b) => a.length - b.length).join(' '),
+      { new: 'not visited', visited: 'visited', shortlist: 'shortlist' }[state.show],
+      state.inView ? 'map view' : '',
+    ].filter(Boolean).join(' · ');
     $('summary').textContent = `${shown.length.toLocaleString()} of ${places.length.toLocaleString()} places`;
     const choice = pool();
     $('counts').textContent = `Picks from ${choice.label}, favoring higher quality`;
@@ -552,6 +561,10 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
     if (state.inView) render();
   });
   $('quality').addEventListener('input', render);
+  $('filters-toggle').addEventListener('click', () => {
+    const open = $('panel').classList.toggle('filters-open');
+    $('filters-toggle').setAttribute('aria-expanded', open);
+  });
   $('cuisine-clear').addEventListener('click', () => {
     state.cuisines.clear();
     render();

@@ -420,3 +420,40 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   #counts { text-align: left; }
   #credit { display: none; }
 }
+
+/* On a phone or a short window the filters fold away behind one bar that says
+   what is set, so the list gets the room. */
+#filters-toggle { display: none; }
+@media (max-width: 700px), (max-height: 700px) {
+  #filters-toggle {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 36px;
+    margin: 8px var(--gutter) 10px;
+    padding: 0 10px;
+    font: inherit;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  #filters-toggle::after { content: "▾"; color: var(--muted); font-size: 12px; }
+  #filters-toggle[aria-expanded="true"]::after { content: "▴"; }
+  #filters-summary {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  #panel:not(.filters-open) #controls { display: none; }
+  #panel:not(.filters-open) #list { border-top: 1px solid var(--line); }
+  #panel.filters-open #controls { padding-top: 2px; }
+  #panel.card-open #filters-toggle { display: none; }
+}
