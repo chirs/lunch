@@ -207,9 +207,11 @@ def test_cuisine_falls_back_to_other_types(primary_type, types, expected):
 @pytest.mark.parametrize(
     "name, expected",
     [
-        ("Pupuseria Y Antojitos", "Latin American"),
-        ("El Olanchano restaurante hondureño", "Latin American"),
-        ("La Campiña Salvadoreña", "Latin American"),
+        ("Pupuseria Y Antojitos", "Salvadoran"),
+        ("El Olanchano restaurante hondureño", "Honduran"),
+        ("La Campiña Salvadoreña", "Salvadoran"),
+        ("Sabor Llanero TX", "Venezuelan"),
+        ("Mi Sabor Latino", "Latin American"),
         ("El Amigo Taqueria (Maple)", "Mexican"),
         ("Sophia's Cocina Y Cantina", "Mexican"),
         ("Roland's Jamaica Chicken", "Caribbean"),
@@ -229,7 +231,7 @@ def test_cuisine_falls_back_to_the_name(name, expected):
 
 def test_the_name_beats_a_listed_type():
     # Both of these came out wrong when the type list was trusted first.
-    assert cuisine("restaurant", ["bar", "restaurant"], "El Peñon Restaurante Salvadoreño") == "Latin American"
+    assert cuisine("restaurant", ["bar", "restaurant"], "El Peñon Restaurante Salvadoreño") == "Salvadoran"
     assert cuisine("fast_food_restaurant", ["chicken_restaurant", "hamburger_restaurant"], "Whataburger") == "Burgers"
 
 
@@ -239,16 +241,17 @@ def test_the_name_beats_a_listed_type():
         ("Upscale Indian restaurant with a lakeside patio and inventive cocktails.", "Indian"),
         ("Steaks and seafood in a clubby, wood-paneled setting.", "Steakhouse"),  # earliest word wins
         ("Casual spot for Tex-Mex fare and margaritas.", "Mexican"),
-        ("Relaxed counter-serve joint for Southern comfort food.", "American"),
+        ("Relaxed counter-serve joint for Southern comfort food.", "Southern"),
+        ("Hotel dining room serving comfort food and cocktails.", "American"),
         ("French-inspired bakery chain with quiche and sandwiches.", "French"),
         ("Lively hangout with a patio.", None),
         ("", None),
         # Real summaries that an earlier version of the rules got wrong.
         ("Yemeni eatery with a menu of familiar dishes, including lamb and chicken entrees.", "Middle Eastern"),
-        ("Central American/El Salvadorean cafe for dishes such as pupusas and tacos.", "Latin American"),
+        ("Central American/El Salvadorean cafe for dishes such as pupusas and tacos.", "Salvadoran"),
         ("Big portions of Latin comfort food including Dominican classics.", "Latin American"),
-        ("Casual restaurant serving Venezuelan comfort food including arepas, plus desserts.", "Latin American"),
-        ("Casual venue for breakfast, lunch, and dinner, including popular Honduran dishes.", "Latin American"),
+        ("Casual restaurant serving Venezuelan comfort food including arepas, plus desserts.", "Venezuelan"),
+        ("Casual venue for breakfast, lunch, and dinner, including popular Honduran dishes.", "Honduran"),
         ("Relaxed eatery dishing up comfort food such as fajitas.", "Mexican"),
         ("Easygoing gastropub offering wood-fired pizza, American fare & many wines.", "American"),
         ("Roomy brewpub at the Gaylord Texan Hotel for burgers, beer & sports.", "Bar & Grill"),

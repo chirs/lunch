@@ -171,7 +171,13 @@ CUISINES = {
 # name. Checked in order against the name in lower case without accents, so
 # the more telling words come first ("Pollo" loses to "Pupuseria").
 NAME_HINTS = (
-    (r"pupus|salvador|hondur|catrach|guatemal|nicarag|colombian|llanero|latin[oa]\b", "Latin American"),
+    (r"pupus|salvador", "Salvadoran"),
+    (r"hondur|catrach", "Honduran"),
+    (r"guatemal", "Guatemalan"),
+    (r"nicarag", "Nicaraguan"),
+    (r"venezuel|llanero|arepa", "Venezuelan"),
+    (r"colombian", "Colombian"),
+    (r"latin[oa]\b", "Latin American"),
     (r"taqueria|\btacos?\b|\btortas?\b|torteria|tortilleria|mexican|elotes|antojitos", "Mexican"),
     (r"michoacan|cantina|cocina|fruteria|\bfruta", "Mexican"),
     (r"pizza", "Pizza"),
@@ -201,7 +207,8 @@ NAME_HINTS = (
     (r"sports bar", "Bar & Grill"),
     (r"brunch|toast|creperie|waffle", "Breakfast"),
     (r"\bcafe\b|caffe|bakery|panaderia", "Cafe"),
-    (r"american", "American"),
+    # Not "Central American" or "Latin American", which are something else.
+    (r"(?<!central )(?<!south )(?<!latin )american", "American"),
 )
 
 
@@ -375,6 +382,11 @@ GROUPS = {
     "Mexican & Latin": [
         "Mexican",
         "Latin American",
+        "Salvadoran",
+        "Honduran",
+        "Guatemalan",
+        "Nicaraguan",
+        "Venezuelan",
         "Cuban",
         "Brazilian",
         "Colombian",
@@ -382,7 +394,17 @@ GROUPS = {
         "Peruvian",
         "Caribbean",
     ],
-    "American": ["American", "Barbecue", "Steakhouse", "Breakfast", "Diner", "Cajun", "Soul Food", "Hawaiian"],
+    "American": [
+        "American",
+        "Barbecue",
+        "Steakhouse",
+        "Breakfast",
+        "Diner",
+        "Cajun",
+        "Southern",
+        "Soul Food",
+        "Hawaiian",
+    ],
     "Burgers & Sandwiches": ["Burgers", "Chicken", "Sandwiches", "Fast Food", "Cafe", "Salads", "Hot Dogs"],
     "Bar & Grill": ["Bar & Grill"],
     "Asian": [
@@ -396,12 +418,12 @@ GROUPS = {
         "Filipino",
         "Malaysian",
     ],
-    "South Asian": ["Indian", "Pakistani", "Bangladeshi", "Sri Lankan", "Nepalese", "Tibetan"],
+    "South Asian": ["Indian", "South Asian", "Pakistani", "Bangladeshi", "Sri Lankan", "Nepalese", "Tibetan"],
     "Italian & European": ["Pizza", "Italian", "French", "Irish", "German", "Spanish", "Tapas", "European", "Bistro"],
     "Mediterranean": ["Mediterranean", "Middle Eastern", "Greek", "Halal", "Persian", "Turkish", "Lebanese"],
     "Seafood": ["Seafood"],
     "African": ["African", "Ethiopian"],
-    "Other": ["Other", "Buffet", "Vegetarian", "Vegan", "Dessert", "Soup", "Australian", "Food Hall"],
+    "Other": ["Other", "Buffet", "Vegetarian", "Vegan", "Dessert", "Smoothies", "Soup", "Australian", "Food Hall"],
 }
 CUISINE_GROUPS = {cuisine: group for group, cuisines in GROUPS.items() for cuisine in cuisines}
 # Words that give a cuisine away in Google's written summary of a place: the
@@ -411,11 +433,10 @@ SUMMARY_HINTS = (
     *(
         (rf"\b{re.escape(name.lower())}\b", name)
         for name in CUISINE_GROUPS
-        if name not in ("Other", "Breakfast")
+        if name not in ("Other", "Breakfast", "American")  # these three have their own rules
     ),
     # "for breakfast, lunch, and dinner" says nothing about the food.
     (r"\bbreakfast\b(?!, lunch)", "Breakfast"),
-    (r"central american|south american|\blatin\b|venezuelan|arepa|dominican", "Latin American"),
     (r"tex-mex|fajita|enchilada|burrito|quesadilla|tamale|menudo|gordita", "Mexican"),
     (r"yemeni", "Middle Eastern"),
     (r"bibimbap", "Korean"),
@@ -423,9 +444,13 @@ SUMMARY_HINTS = (
     (r"brewpub|beer garden|\bpub\b", "Bar & Grill"),
     (r"coffee", "Cafe"),
 )
-# Phrases that suggest American food but are used loosely ("Honduran comfort
-# food"), so they only count when nothing above matches.
-SUMMARY_FALLBACKS = ((r"southern|comfort (food|fare|eats)", "American"),)
+# Looser phrases, which only count when nothing above matches: a region where
+# a country would be better ("Central American/Salvadorean cafe"), and comfort
+# food, which is said of every cuisine ("Honduran comfort food").
+SUMMARY_FALLBACKS = (
+    (r"central american|south american|\blatin\b|dominican", "Latin American"),
+    (r"comfort (food|fare|eats)", "American"),
+)
 
 
 def cuisine_name(place_type):
