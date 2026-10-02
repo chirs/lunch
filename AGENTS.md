@@ -79,14 +79,14 @@ The 20 to 23 minute band therefore holds only what the earlier searches
 happened to catch, and has not been audited.
 
 Home was added on 2026-10-02. A `--cached` run first recovered the saved
-results within 23 minutes of home. Then a one-off run searched the 37 grid
+results within 23 minutes of home. Then two one-off runs searched the 37 grid
 cells within 15 minutes of home that are over 20 minutes from the office,
-mostly south and southeast of home: 150 restaurant calls, which hit the cap
-with 146 small cells still queued, and 51 bar calls.
-So every cell within 15 minutes of home has its 20 most popular places, and
-home's 15 to 23 minute band south and east holds only what other searches
-caught. Those calls were billed, since October's ratings tier was already past
-its 1,000 free.
+mostly south and southeast of home: 338 restaurant calls in all, splitting
+until done (11 of the smallest cells were still full), and 51 bar calls. So
+the area within 15 minutes of home is covered about as well as the office's
+20 minutes, and home's 15 to 23 minute band south and east holds only what
+other searches caught. Those calls were billed, since October's ratings tier
+was already past its 1,000 free.
 
 `--near` is the cheap way to fill a known hole: it searches a small circle,
 adds the results to `google_raw.json`, and reruns the rest. `search_cells()`

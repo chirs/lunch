@@ -7,7 +7,6 @@ Open work only; completed items are removed as they land (see git history).
 ## Data
 
 - [ ] Make a full run search the right area: build the grid from cells whose centers are within the 23-minute cap (OSRM is free) and pass it to `search_cells()`, instead of a 14-mile circle that wastes calls on unreachable land; the 20 to 23 minute band has never been searched on purpose
-- [ ] Finish the search around home after 2026-11-01, when the free calls reset: the 2026-10-02 run stopped at 150 restaurant calls with 146 small cells queued within 15 minutes of home; the reachable-grid item above should cover both bases
 - [ ] With that in place, rerun the fetch to pick up the less popular places in dense spots; the runs so far stopped at their call caps with several hundred small cells unsearched
 - [ ] Replace the seed notes with real reviews as places get visited (`visit.py`)
 - [ ] Bump the score for editorial recognition (D Magazine, Eater, Texas Monthly, Michelin)
