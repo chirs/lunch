@@ -90,9 +90,14 @@ still left as Other then takes the cuisine of its same-named branches
 (`share_cuisines()`).
 
 Only 69 of the 122 places asked about had a summary at all, which left 54 as
-Other. Nine of those (Sanjh, Lions Den, Casa Brasa and others) were then given
-a `my_cuisine` by hand from D Magazine on 2026-10-01, leaving 45, Monaco among
-them.
+Other. Nine of those (Sanjh, Lions Den, Casa Brasa and others) were given a
+`my_cuisine` by hand from D Magazine on 2026-10-01, and the owner labeled the
+last 44 himself the same day, hiding four that are not lunch places. Nothing
+is Other now; a refresh will bring new ones, which `my_cuisine` can settle.
+
+The owner's labels introduced Honduran, Nicaraguan, Guatemalan and Venezuelan,
+so the name and summary rules now name the country where they can (a
+pupuseria is Salvadoran) and keep Latin American for the general case.
 
 D Magazine cannot be used as a dataset. Its directory sits behind a bot
 challenge and its robots file disallows Anthropic's crawler, so nothing there
