@@ -192,6 +192,25 @@ function visitCommand(place) {
   return `./visit.py "${place.name.replace(/["$\`\\!]/g, '')}" --date today`;
 }
 
+// Lowercase, accents and apostrophes dropped, other punctuation as spaces, so
+// "taqueria" finds "Taquería" and "joes" finds "Joe's".
+function fold(text) {
+  return text.normalize('NFD').replace(/[\u0300-\u036f'’]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+// Places whose name holds the query: names starting with it first, then names
+// with a word starting with it, then the rest; best score first within each.
+function searchPlaces(places, query) {
+  const q = fold(query);
+  if (!q) return [];
+  const rank = name => name.startsWith(q) ? 0 : ` ${name}`.includes(` ${q}`) ? 1 : name.includes(q) ? 2 : -1;
+  return places.map(p => ({ p, r: rank(fold(p.name)) }))
+    .filter(({ r }) => r >= 0)
+    .sort((a, b) => a.r - b.r || b.p.score - a.p.score)
+    .map(({ p }) => p);
+}
+
 function weightedPick(pool) {
   // Squaring the margin over 3.0 makes a 4.8 about twice as likely as a 4.3.
   const weights = pool.map(p => Math.max(0.1, p.score - 3) ** 2);
@@ -229,7 +248,7 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
   for (const group in members) members[group] = [...members[group]];
   const state = {
     cuisines: new Set(), prices: new Set(), expanded: new Set(),
-    show: '', sort: 'score', inView: false, open: null, shown: [], simulating: false,
+    show: '', sort: 'score', query: '', inView: false, open: null, shown: [], simulating: false,
   };
 
   const map = L.map('map', { preferCanvas: true, zoomControl: false });
@@ -544,6 +563,7 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
   }
 
   const nothing = el('li', 'empty', 'Nothing matches. Loosen a filter or move the map.');
+  const noName = el('li', 'empty', 'No place by that name.');
 
   function render() {
     // "Only what's in the map view" narrows the list, the counts and the
@@ -557,7 +577,11 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
     const byTime = (a, b) => a.minutes - b.minutes;
     const byScore = (a, b) => b.score - a.score || byTime(a, b);
     shown.sort(state.sort === 'score' ? byScore : byTime);
-    $('list').replaceChildren(...(shown.length ? shown.map(p => p.row) : [nothing]));
+    // A search lists matches from every place and leaves the filters, pins,
+    // counts and simulation as they were.
+    const found = state.query ? searchPlaces(places, state.query) : null;
+    const listed = found ?? shown;
+    $('list').replaceChildren(...(listed.length ? listed.map(p => p.row) : [found ? noName : nothing]));
 
     // Best last, so the strongest pins draw on top.
     pins.clearLayers();
@@ -579,7 +603,9 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
       { new: 'not visited', visited: 'visited', shortlist: 'shortlist' }[state.show],
       state.inView ? 'map view' : '',
     ].filter(Boolean).join(' · ');
-    $('summary').textContent = `${shown.length.toLocaleString()} of ${places.length.toLocaleString()} places`;
+    $('summary').textContent = found
+      ? `${found.length.toLocaleString()} ${found.length === 1 ? 'match' : 'matches'} · filters paused`
+      : `${shown.length.toLocaleString()} of ${places.length.toLocaleString()} places`;
     updateLunch();
     return shown;
   }
@@ -617,6 +643,23 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
     if (state.inView) render();
   });
   $('quality').addEventListener('input', render);
+  $('search').addEventListener('input', event => {
+    state.query = event.target.value;
+    if (!$('card').hidden) closeCard();
+    render();
+    $('list').scrollTop = 0;
+  });
+  $('search').addEventListener('keydown', event => {
+    if (event.key === 'Enter' && state.query) {
+      const [first] = searchPlaces(places, state.query);
+      if (first) openCard(first);
+    } else if (event.key === 'Escape' && state.query) {
+      // Handled here so the page-wide Escape does not also close a card.
+      event.stopPropagation();
+      event.target.value = state.query = '';
+      render();
+    }
+  });
   $('filters-toggle').addEventListener('click', () => {
     const open = $('panel').classList.toggle('filters-open');
     $('filters-toggle').setAttribute('aria-expanded', open);

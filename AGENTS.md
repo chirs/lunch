@@ -168,6 +168,13 @@ view" limits the list, the counts and the simulation to the visible map and
 follows it as it moves; the pins are not limited, so panning still finds them,
 and the drive-time thumbs stop reframing the map while it is on.
 
+"Find a place" in the header looks up places by part of the name, ignoring
+case, accents and apostrophes, and ignoring every filter, so a place the
+filters hide still turns up. Names that start with the text come first, then
+names with a word that starts with it. Enter opens the top match; Escape or
+an empty box brings back the filtered list. Pins, counts and the simulation
+keep following the filters.
+
 On a phone or a window under 700px tall the filters start folded behind one
 bar that reads out what is set ("4 to 14 min · 4.3+ · Asian · $ $$"), so the
 list gets the room. Taller desktop windows always show them.

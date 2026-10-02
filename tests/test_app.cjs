@@ -123,3 +123,24 @@ test('shortlist eligibility never falls back to unshortlisted places', () => {
   assert.equal(visible.places[0], open);
   assert.equal(app.lunchPool(all, [open], new Set(), 45, new Date('2026-10-01T14:00:00-05:00')).places.length, 0);
 });
+
+test('search ranks name starts, then word starts, then the rest', () => {
+  const places = [
+    { name: 'The Hong Kong Café', score: 4.6 },
+    { name: 'Hong Dumpling', score: 4.2 },
+    { name: 'Thong Bistro', score: 4.9 },
+    { name: 'Hong Kong Express', score: 4.4 },
+  ];
+  const names = query => Array.from(app.searchPlaces(places, query), p => p.name);
+  assert.deepEqual(names('hong'), ['Hong Kong Express', 'Hong Dumpling', 'The Hong Kong Café', 'Thong Bistro']);
+  assert.deepEqual(names('  HONG kong '), ['Hong Kong Express', 'The Hong Kong Café']);
+  assert.deepEqual(names(''), []);
+  assert.deepEqual(names('pizza'), []);
+});
+
+test('search ignores accents and apostrophes', () => {
+  const places = [{ name: 'Taquería El Juárez', score: 4.5 }, { name: "Joe's Crab-Shack", score: 4.1 }];
+  const names = query => Array.from(app.searchPlaces(places, query), p => p.name);
+  assert.deepEqual(names('juarez'), ['Taquería El Juárez']);
+  assert.deepEqual(names('joes crab shack'), ["Joe's Crab-Shack"]);
+});
