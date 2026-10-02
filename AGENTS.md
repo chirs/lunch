@@ -166,6 +166,10 @@ view" limits the list, the counts and the simulation to the visible map and
 follows it as it moves; the pins are not limited, so panning still finds them,
 and the drive-time thumbs stop reframing the map while it is on.
 
+On a phone or a window under 700px tall the filters start folded behind one
+bar that reads out what is set ("4 to 14 min · 4.3+ · Asian · $ $$"), so the
+list gets the room. Taller desktop windows always show them.
+
 Clicking a pin or a row opens the restaurant card in place of the controls and
 list: stat bars, an open-now chip, links, a shortlist toggle, and "Log a
 visit", which shows and copies the `visit.py` command because the page cannot
