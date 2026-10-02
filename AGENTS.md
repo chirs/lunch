@@ -10,7 +10,8 @@ open work.
   `places.json`. Leaflet comes from unpkg and the tiles from OpenStreetMap.
   No build step.
 - `update.py` regenerates `places.json`. `tests/` covers the script and checks
-  the data.
+  the data. `node --test tests/test_app.cjs` checks the site's opening-hours
+  logic across timezones and daylight-saving changes.
 
 ## Data
 
@@ -117,9 +118,10 @@ free a month).
 cuisine in no group shows under Other, and a run prints any it finds.
 
 `hours` is seven strings, Sunday first, such as `1100-1400,1700-2200`; a range
-that runs past midnight stays on the day it opens. `places.json` holds one
-place per line, which keeps it small and keeps diffs to the places that
-changed.
+that runs past midnight stays on the day it opens. Periods lasting at least
+24 hours are split at midnight, with full days written as `0000-2400`.
+`places.json` holds one place per line, which keeps it small and keeps diffs
+to the places that changed.
 
 `notes`, `my_rating`, `my_cuisine`, `visited` and `hidden` are hand-written per
 place and survive every run. `my_rating` replaces the computed score and

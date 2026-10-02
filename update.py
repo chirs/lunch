@@ -333,8 +333,8 @@ def week_hours(place):
     """Opening hours as seven strings, Sunday first, or None if Google lists none.
 
     A day reads "1100-2200", "1100-1400,1700-2200", or "" when closed. A range
-    that runs past midnight stays on the day it opens ("1700-0200"), and a
-    place that never closes is "0000-2400" every day.
+    that runs past midnight stays on the day it opens ("1700-0200"). Periods
+    lasting at least 24 hours are split at midnight; a full day is "0000-2400".
     """
     periods = place.get("regularOpeningHours", {}).get("periods")
     if not periods:
@@ -344,9 +344,23 @@ def week_hours(place):
     days = [[] for _ in range(7)]
     for period in periods:
         start, end = period["open"], period["close"]
-        days[start["day"]].append(
-            f"{start['hour']:02d}{start['minute']:02d}-{end['hour']:02d}{end['minute']:02d}"
+        first, last = (
+            point["day"] * 1440 + point["hour"] * 60 + point["minute"]
+            for point in (start, end)
         )
+        if last <= first:
+            last += 7 * 1440
+        if last - first < 1440:
+            days[start["day"]].append(
+                f"{start['hour']:02d}{start['minute']:02d}-{end['hour']:02d}{end['minute']:02d}"
+            )
+            continue
+        while first < last:
+            day, minute = divmod(first, 1440)
+            stop = min(last, (day + 1) * 1440)
+            close = stop - day * 1440
+            days[day % 7].append(f"{minute // 60:02d}{minute % 60:02d}-{close // 60:02d}{close % 60:02d}")
+            first = stop
     return [",".join(sorted(day)) for day in days]
 
 
@@ -705,15 +719,21 @@ def main():
     data = json.loads(PLACES.read_text())
     office = data["office"]
 
-    if args.near:
-        # A top-up keeps the date of the full fetch, which most ratings are from.
-        lat, lon, miles = map(float, args.near.split(","))
-        raw = json.loads(RAW.read_text())
-        raw["places"].update(fetch({"lat": lat, "lon": lon}, miles, NEAR_CALLS, NEAR_BAR_CALLS))
-    elif not args.cached:
-        today = datetime.datetime.now().astimezone().date().isoformat()
-        raw = {"fetched": today, "places": fetch(office, SEARCH_MILES, MAX_CALLS, MAX_BAR_CALLS)}
     if not args.cached:
+        previous = json.loads(RAW.read_text()) if RAW.exists() else {"places": {}}
+        if args.near:
+            # A top-up keeps the date of the full fetch, which most ratings are from.
+            lat, lon, miles = map(float, args.near.split(","))
+            found = fetch({"lat": lat, "lon": lon}, miles, NEAR_CALLS, NEAR_BAR_CALLS)
+            raw = {**previous, "places": {**previous["places"], **found}}
+        else:
+            found = fetch(office, SEARCH_MILES, MAX_CALLS, MAX_BAR_CALLS)
+            raw = {"places": found}
+        raw.setdefault("fetched", datetime.datetime.now().astimezone().date().isoformat())
+        for id, place in found.items():
+            saved = previous["places"].get(id, {})
+            if "summary" in saved:
+                place["summary"] = saved["summary"]
         key = api_key()
         add_summaries(raw["places"], office, lambda id: place_details(key, id, SUMMARY_MASK), SUMMARY_CALLS)
         RAW.write_text(json.dumps(raw))

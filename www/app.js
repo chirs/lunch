@@ -3,6 +3,9 @@
 const TIER_RADIUS = [5, 6.5, 8];
 const SHORTLIST_KEY = 'lunch-shortlist';
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DALLAS_CLOCK = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Chicago', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+});
 // Score at or above each cut moves a place up a tier. Tiers and the quality
 // slider compare the score as displayed, rounded to one decimal. The cuts
 // come from places.json, where update.py sizes them to the data.
@@ -85,10 +88,15 @@ function dayText(day) {
   return ranges(day).map(r => `${clock(r.from)} to ${clock(r.to)}`).join(', ') || 'Closed';
 }
 
+function dallasTime(now = new Date()) {
+  const parts = Object.fromEntries(DALLAS_CLOCK.formatToParts(now).map(part => [part.type, part.value]));
+  return { today: DAYS.indexOf(parts.weekday), minute: Number(parts.hour) * 60 + Number(parts.minute) };
+}
+
 function openStatus(hours, now = new Date()) {
   if (!hours) return null;
   if (hours.every(day => day === '0000-2400')) return { open: true, text: 'Open 24 hours' };
-  const today = now.getDay(), minute = now.getHours() * 60 + now.getMinutes();
+  const { today, minute } = dallasTime(now);
   // Yesterday's late range may still be running.
   for (const [back, shift] of [[0, 0], [1, 1440]]) {
     const running = ranges(hours[(today - back + 7) % 7])
@@ -283,11 +291,12 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
 
   function openCard(place, banner) {
     state.open = place;
+    const now = new Date();
 
     const headline = el('div', 'headline');
     if (banner) headline.append(el('p', 'banner', banner));
     headline.append(el('h2', '', place.name), el('p', 'meta', meta(place)));
-    const status = openStatus(place.hours);
+    const status = openStatus(place.hours, now);
     const chip = el('span', `chip ${status?.open ? 'open' : ''}`, status?.text ?? 'Hours not listed');
     chip.prepend(el('i'));
     headline.append(chip);
@@ -329,7 +338,7 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
     const rest = [];
     if (place.visited) rest.push(el('p', 'visited-line', visitedText(place)));
     if (place.notes) rest.push(el('p', 'box', place.notes));
-    if (place.hours) rest.push(weekTable(place.hours, new Date().getDay()));
+    if (place.hours) rest.push(weekTable(place.hours, dallasTime(now).today));
 
     showCard(headline, stats(place), el('p', 'breakdown', breakdown(place, average)), actions, command, ...rest);
     const spot = [place.lat, place.lon];

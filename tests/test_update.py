@@ -314,6 +314,49 @@ def test_add_summaries_asks_once_and_only_for_other_places(capsys):
     assert "summary" not in places["known"]
 
 
+@pytest.mark.parametrize("near", [False, True])
+def test_refresh_preserves_summaries_and_only_looks_up_new_places(monkeypatch, tmp_path, near):
+    places_path, raw_path = tmp_path / "places.json", tmp_path / "google_raw.json"
+    saved = {
+        "known": google_place(id="known", summary="Oysters and American classics."),
+        "empty": google_place(id="empty", summary=""),
+        "outside": google_place(id="outside"),
+    }
+    raw_path.write_text(json.dumps({"fetched": "2026-09-01", "places": saved}))
+    places_path.write_text(json.dumps({"office": OFFICE, "places": []}))
+    fresh = {
+        id: google_place(
+            id=id, displayName={"text": name}, primaryType="restaurant", rating=4.7,
+        )
+        for id, name in [("known", "Hudson House"), ("empty", "Sanjh"), ("new", "Monaco")]
+    }
+    asked = []
+
+    def details(key, place_id, field_mask):
+        asked.append(place_id)
+        return {"editorialSummary": {"text": "French cuisine."}}
+
+    monkeypatch.setattr(update, "PLACES", places_path)
+    monkeypatch.setattr(update, "RAW", raw_path)
+    monkeypatch.setattr(update, "fetch", lambda *args: fresh)
+    monkeypatch.setattr(update, "api_key", lambda: "test-key")
+    monkeypatch.setattr(update, "place_details", details)
+    monkeypatch.setattr(update, "drive_minutes", lambda office, places: [5.0] * len(places))
+    monkeypatch.setattr("sys.argv", ["update.py", *(["--near", "32.9,-96.9,1.5"] if near else [])])
+
+    update.main()
+
+    result = json.loads(raw_path.read_text())
+    assert asked == ["new"]
+    assert result["places"]["known"]["summary"] == saved["known"]["summary"]
+    assert result["places"]["empty"]["summary"] == ""
+    assert result["places"]["new"]["summary"] == "French cuisine."
+    assert result["places"]["known"]["rating"] == 4.7
+    assert ("outside" in result["places"]) is near
+    if near:
+        assert result["fetched"] == "2026-09-01"
+
+
 def test_the_name_beats_fast_food():
     assert cuisine("fast_food_restaurant", ["fast_food_restaurant"], "Laredo Taco Company") == "Mexican"
 
@@ -345,6 +388,32 @@ def test_week_hours():
     lunch_and_dinner = [hours(1, 17, 22), hours(1, 11, 14), hours(5, 17, 2, close_day=6)]
     place = {"regularOpeningHours": {"periods": lunch_and_dinner}}
     assert week_hours(place) == ["", "1100-1400,1700-2200", "", "", "", "1700-0200", ""]
+
+
+@pytest.mark.parametrize(
+    "period, expected",
+    [
+        (hours(5, 0, 0, close_day=1), ["0000-2400", "", "", "", "", "0000-2400", "0000-2400"]),
+        (hours(1, 0, 0, close_day=0), ["", *["0000-2400"] * 6]),
+        (hours(2, 11, 14, close_day=3), ["", "", "1100-2400", "0000-1400", "", "", ""]),
+        (hours(6, 22, 13, close_day=1), ["0000-2400", "0000-1300", "", "", "", "", "2200-2400"]),
+        (hours(1, 0, 0, close_day=2), ["", "0000-2400", "", "", "", "", ""]),
+        (hours(1, 11, 11, close_day=2), ["", "1100-2400", "0000-1100", "", "", "", ""]),
+        (hours(6, 17, 2, close_day=0), ["", "", "", "", "", "", "1700-0200"]),
+    ],
+)
+def test_week_hours_spans_full_days(period, expected):
+    assert week_hours({"regularOpeningHours": {"periods": [period]}}) == expected
+
+
+def test_week_hours_multiday_keeps_partial_hours():
+    period = {
+        "open": {"day": 6, "hour": 22, "minute": 30},
+        "close": {"day": 1, "hour": 13, "minute": 15},
+    }
+    assert week_hours({"regularOpeningHours": {"periods": [period]}}) == [
+        "0000-2400", "0000-1315", "", "", "", "", "2230-2400",
+    ]
 
 
 def test_week_hours_always_open_and_unlisted():

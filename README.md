@@ -62,6 +62,7 @@ visits itself. "Log a visit" on a restaurant's card copies the command.
 
     python3 -m venv .venv && .venv/bin/pip install pytest ruff
     .venv/bin/python -m pytest
+    node --test tests/test_app.cjs       # opening-hours logic; needs Node.js
     python3 -m http.server -d www 8765     # then open http://127.0.0.1:8765/
 
 ## Deploy
