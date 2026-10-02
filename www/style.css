@@ -154,7 +154,7 @@ h1::before { content: ""; width: 9px; height: 9px; border-radius: 50%; backgroun
 .range input:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--accent); }
 .range input:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 2px var(--accent); }
 #choices, #order { position: relative; display: flex; gap: 8px; }
-#controls select, .menu summary {
+#controls select, #meal-duration, .menu summary {
   flex: 1;
   min-width: 0;
   height: 36px;
@@ -366,6 +366,8 @@ h2, .simulating .name { margin: 0; font-size: 27px; line-height: 1.15; font-weig
 
 /* Footer */
 #foot { display: grid; gap: 8px; padding: 12px var(--gutter) 14px; border-top: 1px solid var(--line); }
+#lunch-plan { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--muted); }
+#meal-duration { flex: none; width: 90px; height: 32px; }
 #simulate { height: 44px; font-size: 13px; letter-spacing: 0.12em; }
 #counts { font: 12px var(--mono); color: var(--muted); text-align: center; }
 #credit { font: 11px var(--mono); color: var(--faint); text-align: center; }
@@ -423,9 +425,8 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   .menu-panel { max-height: 28dvh; }
   /* On a phone the card takes the title's space too. */
   #panel.card-open #top { display: none; }
-  #foot { grid-template-columns: auto 1fr; align-items: center; padding-top: 8px; padding-bottom: 10px; }
+  #foot { padding-top: 8px; padding-bottom: 10px; }
   #simulate { height: 40px; }
-  #counts { text-align: left; }
   #credit { display: none; }
 }
 

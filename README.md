@@ -15,7 +15,9 @@ JavaScript, no build step. See [ROADMAP.md](ROADMAP.md) for open work and
   now, the week's hours, and links to directions, Google Maps and the website.
 - **Shortlist:** star a few places; the stars are kept in that browser.
 - **Run simulation:** picks a place from the shortlist, or from whatever the
-  filters show, leaning toward higher quality.
+  filters show, leaning toward higher quality. Assuming you leave now, it
+  checks that the place is open when you arrive and throughout a 30-, 45-, or
+  60-minute meal (45 by default). Places without hours are excluded from picks.
 - **Visits:** places you have been to are marked, with your own rating and
   notes in place of the estimates.
 

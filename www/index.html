@@ -79,8 +79,16 @@
     <ul id="list"></ul>
     <article id="card" hidden></article>
     <footer id="foot">
+      <label id="lunch-plan" for="meal-duration">
+        <span>Leave now · time to eat</span>
+        <select id="meal-duration">
+          <option value="30">30 min</option>
+          <option value="45" selected>45 min</option>
+          <option value="60">60 min</option>
+        </select>
+      </label>
       <button type="button" id="simulate" class="button primary">Run simulation</button>
-      <span id="counts"></span>
+      <span id="counts" role="status"></span>
       <span id="credit"></span>
     </footer>
   </section>

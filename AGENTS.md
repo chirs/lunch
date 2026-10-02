@@ -178,6 +178,12 @@ visit", which shows and copies the `visit.py` command because the page cannot
 write visits itself. The shortlist lives in that browser's local storage. "Run
 simulation" picks from the shortlist when it holds two or more places,
 otherwise from what the filters show, weighted toward higher scores.
+The picker assumes departure now and adds the drive estimate, then requires
+continuous opening hours for the selected meal duration (30, 45 or 60 minutes;
+45 by default). It uses Dallas time and excludes places without hours.
+An unavailable shortlist does not fall back to unshortlisted places. The list
+and map remain available for browsing all matching places. Eligible counts
+refresh every minute, on returning to the tab, and when starting a simulation.
 
 The quality tiers (pin color and size) are cut at `tier_cuts` in
 `places.json`, which `update.py` sets so each outer tier holds about a fifth of

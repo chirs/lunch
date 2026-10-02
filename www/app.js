@@ -113,6 +113,34 @@ function openStatus(hours, now = new Date()) {
   return { open: false, text: 'Closed' };
 }
 
+function fitsLunch(place, mealMinutes, now = new Date(), clockTimes = new Map()) {
+  if (!place.hours) return false;
+  const schedule = place.hours.map(ranges);
+  const arrival = now.getTime() + place.minutes * 60000;
+  const finish = arrival + mealMinutes * 60000;
+  // Hours change on minute boundaries. Check every occupied minute, using
+  // elapsed time so a meal can cross midnight or a daylight-saving change.
+  for (let time = Math.floor(arrival / 60000) * 60000; time < finish; time += 60000) {
+    if (!clockTimes.has(time)) clockTimes.set(time, dallasTime(new Date(time)));
+    const { today, minute } = clockTimes.get(time);
+    const contains = (periods, at) => periods.some(r => r.start <= at && at < r.end);
+    if (!contains(schedule[today], minute) && !contains(schedule[(today + 6) % 7], minute + 1440)) return false;
+  }
+  return true;
+}
+
+function lunchPool(places, shown, shortlist, mealMinutes, now = new Date()) {
+  const starred = places.filter(p => shortlist.has(p.id));
+  const candidates = starred.length >= 2 ? starred : shown;
+  const clockTimes = new Map();
+  return {
+    places: candidates.filter(p => fitsLunch(p, mealMinutes, now, clockTimes)),
+    source: starred.length >= 2 ? 'shortlisted' : 'filtered',
+    total: candidates.length,
+    unknown: candidates.filter(p => !p.hours).length,
+  };
+}
+
 function stat(label, fraction, value, className = '') {
   const term = el('dt', '', label), detail = el('dd');
   const bar = el('span', `bar ${className}`), fill = el('i');
@@ -300,6 +328,9 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
     const chip = el('span', `chip ${status?.open ? 'open' : ''}`, status?.text ?? 'Hours not listed');
     chip.prepend(el('i'));
     headline.append(chip);
+    const mealNote = el('p', 'meta');
+    mealNote.id = 'meal-note';
+    headline.append(mealNote);
 
     const actions = el('div', 'actions');
     actions.append(link('Directions', directionsUrl(place, office), 'button primary'));
@@ -344,28 +375,36 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
     const spot = [place.lat, place.lon];
     cursor.setLatLng(spot).addTo(map);
     map.panInside(spot, { padding: [48, 48] });
+    updateLunch();
   }
 
-  // What a simulation chooses from: the shortlist once it holds two places,
-  // otherwise whatever the filters show.
-  function pool() {
-    const starred = places.filter(p => shortlist.has(p.id));
-    return starred.length >= 2
-      ? { places: starred, label: `${starred.length} shortlisted` }
-      : { places: state.shown, label: `${state.shown.length} on the map` };
+  function updateLunch() {
+    const now = new Date(), meal = Number($('meal-duration').value);
+    const choice = lunchPool(places, state.shown, shortlist, meal, now);
+    $('counts').textContent = `${choice.places.length} of ${choice.total} ${choice.source} fit lunch` +
+      (choice.unknown ? ` · ${choice.unknown} without hours` : '');
+    $('simulate').disabled = state.simulating || choice.places.length === 0;
+    $('meal-duration').disabled = state.simulating;
+    if (state.open && $('meal-note')) {
+      $('meal-note').textContent = !state.open.hours ? 'Hours not listed; excluded from lunch picks.'
+        : fitsLunch(state.open, meal, now) ? `Time for a ${meal} min meal after your ${minutesText(state.open)} drive.`
+        : `Not enough open time for a ${meal} min meal after your drive.`;
+    }
+    return choice;
   }
 
   async function simulate() {
-    const { places: candidates, label } = pool();
-    if (state.simulating || !candidates.length) return;
-    const winner = weightedPick(candidates);
+    if (state.simulating) return;
+    const { places: candidates, source } = updateLunch();
+    if (!candidates.length) return;
+    let winner = weightedPick(candidates);
     const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (candidates.length > 1 && !still) {
       state.simulating = true;
-      $('simulate').disabled = true;
+      updateLunch();
       const body = el('div', 'simulating');
       const name = el('div', 'name'), detail = el('div', 'meta');
-      body.append(el('p', 'banner', `Choosing from ${label}`), name, detail);
+      body.append(el('p', 'banner', `Choosing from ${candidates.length} ${source}`), name, detail);
       state.open = null;
       showCard(body);
       // Leave the map alone if every candidate is already on it. Otherwise
@@ -384,9 +423,17 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
       }
       await sleep(350);
       state.simulating = false;
-      $('simulate').disabled = false;
     }
-    openCard(winner, 'Simulation complete. Lunch is at');
+    const now = new Date(), meal = Number($('meal-duration').value), clockTimes = new Map();
+    const eligible = candidates.filter(p => fitsLunch(p, meal, now, clockTimes));
+    if (!eligible.includes(winner)) winner = weightedPick(eligible);
+    if (winner) openCard(winner, 'Simulation complete. Lunch is at');
+    else {
+      state.open = null;
+      cursor.remove();
+      showCard(el('p', 'box', 'No places still fit lunch. Try a shorter meal or different places.'));
+    }
+    updateLunch();
   }
 
   // Colors the stretch of a slider's track that is selected, as fractions of
@@ -533,9 +580,7 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
       state.inView ? 'map view' : '',
     ].filter(Boolean).join(' · ');
     $('summary').textContent = `${shown.length.toLocaleString()} of ${places.length.toLocaleString()} places`;
-    const choice = pool();
-    $('counts').textContent = `Picks from ${choice.label}, favoring higher quality`;
-    $('simulate').disabled = state.simulating || choice.places.length === 0;
+    updateLunch();
     return shown;
   }
 
@@ -604,6 +649,13 @@ function start({ office, places, updated, tier_cuts, max_minutes, cuisine_groups
     });
   }
   $('simulate').addEventListener('click', simulate);
+  $('meal-duration').addEventListener('change', updateLunch);
+  setInterval(() => {
+    if (!state.simulating) updateLunch();
+  }, 60000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && !state.simulating) updateLunch();
+  });
   document.addEventListener('keydown', event => {
     if (event.key !== 'Escape') return;
     if ($('cuisine-menu').open) $('cuisine-menu').open = false;
