@@ -476,6 +476,7 @@ function start({ office, home, places, updated, tier_cuts, max_minutes, cuisine_
     const now = new Date(), meal = Number($('meal-duration').value), clockTimes = new Map();
     const eligible = candidates.filter(p => fitsLunch(p, meal, now, clockTimes));
     if (!eligible.includes(winner)) winner = weightedPick(eligible);
+    document.dispatchEvent(new CustomEvent('lunch-decided', { detail: winner?.name }));
     if (winner) openCard(winner, 'Simulation complete. Lunch is at');
     else {
       state.open = null;
