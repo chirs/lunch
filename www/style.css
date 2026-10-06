@@ -481,39 +481,49 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 }
 #controls > .slider-head { align-items: center; }
 
+/* Sits over the map's corner and lets clicks through, so the pick stays usable. */
 #annie {
   position: fixed;
-  inset: 0;
+  right: 16px;
+  bottom: 16px;
   z-index: 10000;
-  display: grid;
-  place-content: center;
-  justify-items: center;
-  gap: 24px;
-  padding: var(--gutter);
-  background: rgb(15 20 23 / 0.94);
-  text-align: center;
-  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: min(460px, calc(100vw - 32px));
+  padding: 12px 16px;
+  border: 1px solid var(--accent-line);
+  border-radius: 10px;
+  background: rgb(15 20 23 / 0.92);
+  pointer-events: none;
 }
 .annie-singer {
-  font-size: 140px;
+  flex: none;
+  font-size: 44px;
   line-height: 1;
   color: #d97757;
 }
 .annie-line {
+  flex: 1;
   margin: 0;
-  max-width: 18ch;
-  font-size: clamp(32px, 7vw, 72px);
+  font-size: 20px;
   font-weight: 700;
-  line-height: 1.1;
+  line-height: 1.2;
   color: var(--ink);
 }
-.annie-line.annie-shout {
-  color: var(--accent);
-  font-size: clamp(40px, 10vw, 112px);
+.annie-line.annie-shout { color: var(--accent); font-size: 26px; }
+.annie-stop {
+  flex: none;
+  pointer-events: auto;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--muted);
+  font: 12px "Geist Mono", monospace;
+  cursor: pointer;
 }
-.annie-hint {
-  margin: 0;
-  font-family: "Geist Mono", monospace;
-  font-size: 12px;
-  color: var(--faint);
+/* On a phone the map is on top, so the banner goes there. */
+@media (max-width: 700px) {
+  #annie { top: 12px; bottom: auto; right: 12px; max-width: calc(100vw - 24px); }
 }

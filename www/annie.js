@@ -96,7 +96,7 @@ function annieSing() {
 
   const overlay = document.createElement('div');
   overlay.id = 'annie';
-  overlay.innerHTML = '<div class="annie-singer" aria-hidden="true">✻</div><p class="annie-line"></p><p class="annie-hint">Esc to make it stop</p>';
+  overlay.innerHTML = '<div class="annie-singer" aria-hidden="true">✻</div><p class="annie-line"></p><button type="button" class="annie-stop">Stop</button>';
   document.body.append(overlay);
   const line = overlay.querySelector('.annie-line');
   const singer = overlay.querySelector('.annie-singer');
@@ -112,11 +112,10 @@ function annieSing() {
     }
     const pulse = 1 - ((elapsed / beat) % 1);
     singer.style.transform = `scale(${1 + pulse * 0.35}) rotate(${Math.sin(elapsed * 3) * 15}deg)`;
-    document.body.style.transform = pulse > 0.85 ? `translate(${Math.random() * 8 - 4}px, ${Math.random() * 8 - 4}px)` : '';
     annie.frame = requestAnimationFrame(tick);
   };
   annie = { ctx, overlay, frame: requestAnimationFrame(tick) };
-  overlay.addEventListener('click', annieStop);
+  overlay.querySelector('.annie-stop').addEventListener('click', annieStop);
 }
 
 function annieStop() {
@@ -124,11 +123,7 @@ function annieStop() {
   cancelAnimationFrame(annie.frame);
   annie.ctx.close();
   annie.overlay.remove();
-  document.body.style.transform = '';
   annie = null;
 }
 
 document.getElementById('simulate').addEventListener('click', annieSing);
-document.addEventListener('keydown', event => {
-  if (event.key === 'Escape') annieStop();
-}, true);
