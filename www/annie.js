@@ -1,6 +1,6 @@
 // Two songs, both synthesized. Run simulation plays a New Order-style
 // sequenced dance loop under a pulsar plot like Joy Division's Unknown Pleasures
-// cover, and stops dead on the pick (app.js fires 'lunch-decided'). Picking a place by
+// cover, and fades out on the pick (app.js fires 'lunch-decided'). Picking a place by
 // hand plays a short Elvis number in a random style and key
 // ('place-picked').
 
@@ -67,8 +67,9 @@ function annieKit(ctx) {
   };
   // Oscillators (one per pitch and detune) through a lowpass that closes from
   // `open` to `shut`; covers the bass, brass, strings, guitar and organ.
-  const tone = (dest, at, freqs, length, { type = 'sawtooth', peak = 0.1, open = 3000, shut = open, attack = 0.01, detunes = [0] } = {}) => {
+  const tone = (dest, at, freqs, length, { type = 'sawtooth', peak = 0.1, open = 3000, shut = open, attack = 0.01, detunes = [0], q = 1 } = {}) => {
     const gain = ctx.createGain(), low = ctx.createBiquadFilter();
+    low.Q.value = q;
     low.frequency.setValueAtTime(open, at);
     low.frequency.exponentialRampToValueAtTime(shut, at + length);
     gain.gain.setValueAtTime(0.001, at);
@@ -87,11 +88,16 @@ function annieKit(ctx) {
       }
     }
   };
-  return { hiss, kick, snare, tone };
+  // A drum-machine clap: three quick bursts of noise and a short tail.
+  const clap = (dest, at, peak) => {
+    for (const [lag, length] of [[0, 0.02], [0.012, 0.02], [0.024, 0.2]]) hiss(dest, at + lag, 'bandpass', 1400, peak, length);
+  };
+  return { hiss, kick, snare, clap, tone };
 }
 
-// Start a song: a fresh audio context, a band bus the finish can cut dead,
-// and the corner banner with `art` beside the line.
+// Start a song: a fresh audio context, a band bus the finish can cut or fade,
+// a room that feeds the band through a long reverb, and the corner banner with
+// `art` beside the line.
 function annieStart(kind, art) {
   annieStop();
   const ctx = new AudioContext();
@@ -99,25 +105,34 @@ function annieStart(kind, art) {
   out.connect(ctx.destination);
   const band = ctx.createGain();
   band.connect(out);
+  const room = ctx.createGain(), reverb = ctx.createConvolver();
+  const tail = ctx.createBuffer(2, ctx.sampleRate * 2, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) {
+    tail.getChannelData(c).forEach((_, n, data) => { data[n] = (Math.random() * 2 - 1) * (1 - n / data.length) ** 3; });
+  }
+  reverb.buffer = tail;
+  room.connect(band);
+  room.connect(reverb).connect(band);
   const overlay = document.createElement('div');
   overlay.id = 'annie';
   overlay.innerHTML = `${art}<p class="annie-line"></p><button type="button" class="annie-stop">Stop</button>`;
   document.body.append(overlay);
   overlay.querySelector('.annie-stop').addEventListener('click', annieStop);
-  annie = { kind, ctx, out, band, kit: annieKit(ctx), overlay, line: overlay.querySelector('.annie-line'), ending: false };
+  annie = { kind, ctx, out, band, room, kit: annieKit(ctx), overlay, line: overlay.querySelector('.annie-line'), ending: false };
   return annie;
 }
 
 function annieSing() {
   const song = annieStart('simulation', '<canvas class="annie-pulsar" width="96" height="72" aria-hidden="true"></canvas>');
-  const { ctx, band, line } = song;
-  const { hiss, kick, snare, tone } = song.kit;
+  const { ctx, band, room, line } = song;
+  const { hiss, kick, clap, tone } = song.kit;
 
-  // A drum machine: kick on every beat with a sixteenth-note roll at the end of
-  // every other bar, claps on two and four, open hats on the off-beats. Under
-  // it an octave-jumping sequenced bass over Dm, C, F, Bb, a bass guitar
-  // playing the melody high up the neck, and a string pad. Enough bars to
-  // outlast any roll; the finish cuts it.
+  // The roll lasts under three seconds, so everything comes in at once. A
+  // drum machine with the stuttering sixteenth-note kick runs, a clap in a big
+  // room on two and four, and open hats on the off-beats. Under it a
+  // sequencer bass jumping octaves in sixteenths over Dm, C, F, Bb; the bass
+  // guitar high up the neck, plucked and wet, carrying the tune; a choir-ish
+  // string pad and a bright arpeggio. Enough bars to outlast any roll.
   const beat = 60 / ANNIE_BPM;
   const roots = [73.4, 65.4, 87.3, 58.3];
   const chords = [
@@ -127,26 +142,29 @@ function annieSing() {
     [293.7, 349.2, 466.2],
   ];
   const hooks = [
-    [293.7, 0, 349.2, 329.6, 293.7, 0, 220, 261.6],
-    [261.6, 0, 329.6, 293.7, 261.6, 0, 196, 220],
-    [349.2, 0, 440, 392, 349.2, 0, 293.7, 329.6],
-    [293.7, 0, 349.2, 293.7, 233.1, 0, 220, 0],
+    [440, 0, 440, 392, 349.2, 0, 293.7, 349.2],
+    [392, 0, 392, 349.2, 329.6, 0, 261.6, 329.6],
+    [349.2, 0, 440, 392, 349.2, 0, 261.6, 349.2],
+    [349.2, 0, 293.7, 0, 233.1, 261.6, 293.7, 0],
   ];
+  // Kick sixteenths per bar, alternating: four on the floor with a run into
+  // the next bar, then a run across the whole back half.
+  const kicks = [[0, 4, 8, 12, 13, 14, 15], [0, 4, 8, 9, 10, 11, 12, 13, 14, 15]];
   const start = ctx.currentTime + 0.05;
   for (let bar = 0; bar < 24; bar++) {
     const t0 = start + bar * 4 * beat;
     const root = roots[bar % 4], chord = chords[bar % 4];
+    for (const n of kicks[bar % 2]) kick(band, t0 + n * beat / 4);
     for (let b = 0; b < 4; b++) {
-      kick(band, t0 + b * beat);
-      if (b % 2) snare(band, t0 + b * beat, 0.6);
-      hiss(band, t0 + (b + 0.5) * beat, 'highpass', 6000, 0.12, 0.12);
+      if (b % 2) clap(room, t0 + b * beat, 0.5);
+      hiss(band, t0 + (b + 0.5) * beat, 'highpass', 7000, 0.1, 0.15);
     }
-    if (bar % 2) for (let n = 13; n < 16; n++) kick(band, t0 + n * beat / 4);
-    for (let n = 0; n < 16; n++) tone(band, t0 + n * beat / 4, [n % 2 ? root * 2 : root], beat / 4, { peak: 0.3, open: 1800, shut: 400, attack: 0.003 });
+    for (let n = 0; n < 16; n++) tone(band, t0 + n * beat / 4, [n % 2 ? root * 2 : root], beat / 4, { type: 'square', peak: 0.16, open: 2400, shut: 300, attack: 0.003, q: 6 });
     hooks[bar % 4].forEach((freq, n) => {
-      if (freq) tone(band, t0 + n * beat / 2, [freq], beat / 2, { peak: 0.14, open: 1600, detunes: [-8, 8] });
+      if (freq) tone(room, t0 + n * beat / 2, [freq], beat * 0.9, { peak: 0.13, open: 3200, shut: 600, attack: 0.004, detunes: [-12, 12] });
     });
-    tone(band, t0, chord, 4 * beat, { peak: 0.03, open: 2200, attack: 0.3, detunes: [-14, 0, 14] });
+    for (let n = 0; n < 16; n++) tone(room, t0 + n * beat / 4, [chord[(n * 2) % 3] * 2], beat / 5, { type: 'square', peak: 0.02, open: 4000, shut: 1200, attack: 0.003 });
+    tone(room, t0, chord, 4 * beat, { type: 'triangle', peak: 0.06, attack: 0.25, detunes: [-14, 0, 14] });
   }
   annieSay('How does it feel?', 0.9, 0.85);
 
@@ -155,7 +173,7 @@ function annieSing() {
     if (annie !== song) return;
     const elapsed = ctx.currentTime - start;
     if (!song.ending) line.textContent = ANNIE_SHOUTS[Math.max(0, Math.floor(elapsed / beat / 4)) % ANNIE_SHOUTS.length];
-    annieDraw(pulsar, elapsed, song.ending ? 0 : 1 - ((elapsed / beat) % 1));
+    annieDraw(pulsar, elapsed, 1 - ((elapsed / beat) % 1));
     song.frame = requestAnimationFrame(tick);
   };
   song.frame = requestAnimationFrame(tick);
@@ -186,22 +204,23 @@ function annieDraw(g, t, pulse) {
   }
 }
 
-// Cut the band, leave one snare and a low pad ringing, and name the pick.
+// Hit a clap and a held chord, let the band fade out under them, and name the pick.
 function annieFinish(name) {
   const song = annie;
   if (!song || song.kind !== 'simulation' || song.ending) return;
-  const { ctx, band, out, line } = song;
-  const { kick, snare, tone } = song.kit;
+  const { ctx, band, room, line } = song;
+  const { kick, clap, tone } = song.kit;
   song.ending = true;
   const now = ctx.currentTime;
   band.gain.setValueAtTime(band.gain.value, now);
-  band.gain.linearRampToValueAtTime(0, now + 0.03);
-  kick(out, now + 0.03);
-  snare(out, now + 0.03);
-  tone(out, now + 0.03, [73.4, 293.7, 349.2, 440], 3, { peak: 0.05, open: 1200, attack: 0.05, detunes: [-10, 10] });
+  band.gain.linearRampToValueAtTime(0.6, now + 0.1);
+  band.gain.linearRampToValueAtTime(0, now + 6);
+  kick(band, now + 0.03);
+  clap(room, now + 0.03, 0.8);
+  tone(room, now + 0.03, [73.4, 293.7, 349.2, 440], 5, { type: 'triangle', peak: 0.12, attack: 0.05, detunes: [-14, 0, 14] });
   line.textContent = name ? `${name}. True faith.` : 'True faith.';
   annieSay(line.textContent, 0.9, 0.85);
-  setTimeout(() => { if (annie === song) annieStop(); }, 3500);
+  setTimeout(() => { if (annie === song) annieStop(); }, 6200);
 }
 
 // Four bars of I, IV, I, V in a random key and one of three styles, then a
