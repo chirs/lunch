@@ -1,8 +1,12 @@
-// Run simulation gets Elvis over a Pet Shop Boys-style synth-pop beat while
-// it rolls, and a big finish when it lands on a place. app.js fires 'lunch-decided' at that moment.
+// Two songs, both synthesized. Run simulation plays a New Order-style
+// sequenced dance loop under a pulsar plot like Joy Division's Unknown Pleasures
+// cover, and stops dead on the pick (app.js fires 'lunch-decided'). Picking a place by
+// hand plays a short Elvis number in a random style and key
+// ('place-picked').
 
-const ANNIE_BPM = 120;
-const ANNIE_SHOUTS = ['WELL ALRIGHT', 'TAKIN\' CARE OF BUSINESS', 'WHERE WE EATIN\'', 'LET\'S GO', 'ALWAYS ON MY MIND', 'HEY NOW'];
+const ANNIE_BPM = 130;
+const ANNIE_SHOUTS = ['BLUE MONDAY', 'BIZARRE LOVE TRIANGLE', 'WHERE WE EATIN\'', 'TRUE FAITH', 'CEREMONY', 'REGRET'];
+const ELVIS_LINES = ['Well, alright now.', 'Thank you very much.', 'Takin\' care of business.', 'Let\'s go, baby.', 'Now that\'s lunch.'];
 
 let annie = null;
 
@@ -11,75 +15,70 @@ function annieVoice() {
   return voices.find(v => /aaron|alex|daniel|tom|reed|male/i.test(v.name)) ?? voices[0];
 }
 
-function annieSay(text, rate = 0.85) {
+function annieSay(text, pitch, rate) {
   if (!('speechSynthesis' in window)) return;
   speechSynthesis.cancel();
   const words = new SpeechSynthesisUtterance(text);
   words.voice = annieVoice() ?? null;
-  // Low and easy, not a growl.
-  words.pitch = 0.7;
+  words.pitch = pitch;
   words.rate = rate;
   speechSynthesis.speak(words);
 }
 
-function annieSing() {
-  if (annie) annieStop();
-  const ctx = new AudioContext();
-  const out = ctx.createGain();
-  out.connect(ctx.destination);
-  // The band runs through its own bus so the finish can cut it dead.
-  const band = ctx.createGain();
-  band.connect(out);
-  const noise = ctx.createBuffer(1, ctx.sampleRate / 4, ctx.sampleRate);
-  noise.getChannelData(0).forEach((_, n, data) => { data[n] = Math.random() * 2 - 1; });
+const pickOne = list => list[Math.floor(Math.random() * list.length)];
 
+function annieKit(ctx) {
+  const noise = ctx.createBuffer(1, ctx.sampleRate / 2, ctx.sampleRate);
+  noise.getChannelData(0).forEach((_, n, data) => { data[n] = Math.random() * 2 - 1; });
   const envelope = (node, at, peak, length) => {
     node.gain.setValueAtTime(peak, at);
     node.gain.exponentialRampToValueAtTime(0.001, at + length);
   };
-  const kick = (at, dest) => {
-    const osc = ctx.createOscillator(), gain = ctx.createGain();
-    osc.frequency.setValueAtTime(140, at);
-    osc.frequency.exponentialRampToValueAtTime(40, at + 0.15);
-    envelope(gain, at, 1, 0.3);
-    osc.connect(gain).connect(dest);
-    osc.start(at);
-    osc.stop(at + 0.3);
-  };
-  const crash = (at, dest, peak, length) => {
-    const src = ctx.createBufferSource(), gain = ctx.createGain(), high = ctx.createBiquadFilter();
+  const hiss = (dest, at, type, freq, peak, length) => {
+    const src = ctx.createBufferSource(), gain = ctx.createGain(), filter = ctx.createBiquadFilter();
     src.buffer = noise;
     src.loop = true;
-    high.type = 'highpass';
-    high.frequency.value = 1500;
+    filter.type = type;
+    filter.frequency.value = freq;
     envelope(gain, at, peak, length);
-    src.connect(high).connect(gain).connect(dest);
+    src.connect(filter).connect(gain).connect(dest);
     src.start(at);
     src.stop(at + length);
   };
-  const clap = at => {
-    const src = ctx.createBufferSource(), gain = ctx.createGain(), mid = ctx.createBiquadFilter();
-    src.buffer = noise;
-    mid.type = 'bandpass';
-    mid.frequency.value = 1200;
-    envelope(gain, at, 0.7, 0.18);
-    src.connect(mid).connect(gain).connect(band);
-    src.start(at);
-    src.stop(at + 0.18);
+  const kick = (dest, at) => {
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.frequency.setValueAtTime(130, at);
+    osc.frequency.exponentialRampToValueAtTime(42, at + 0.12);
+    envelope(gain, at, 0.9, 0.25);
+    osc.connect(gain).connect(dest);
+    osc.start(at);
+    osc.stop(at + 0.25);
   };
-  // Synth brass: three detuned saws through a closing filter, punched in fast.
-  const horn = (at, freqs, length, dest, peak) => {
+  // A dry, clipped snare: a tight tone and a burst of noise, gated short.
+  const snare = (dest, at, peak = 0.8) => {
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = 190;
+    envelope(gain, at, peak / 2, 0.08);
+    osc.connect(gain).connect(dest);
+    osc.start(at);
+    osc.stop(at + 0.08);
+    hiss(dest, at, 'bandpass', 2500, peak, 0.14);
+  };
+  // Oscillators (one per pitch and detune) through a lowpass that closes from
+  // `open` to `shut`; covers the bass, brass, strings, guitar and organ.
+  const tone = (dest, at, freqs, length, { type = 'sawtooth', peak = 0.1, open = 3000, shut = open, attack = 0.01, detunes = [0] } = {}) => {
     const gain = ctx.createGain(), low = ctx.createBiquadFilter();
-    low.frequency.setValueAtTime(3000, at);
-    low.frequency.exponentialRampToValueAtTime(700, at + length);
+    low.frequency.setValueAtTime(open, at);
+    low.frequency.exponentialRampToValueAtTime(shut, at + length);
     gain.gain.setValueAtTime(0.001, at);
-    gain.gain.exponentialRampToValueAtTime(peak, at + 0.02);
+    gain.gain.exponentialRampToValueAtTime(peak, at + attack);
     gain.gain.exponentialRampToValueAtTime(0.001, at + length);
     low.connect(gain).connect(dest);
     for (const freq of freqs) {
-      for (const detune of [-12, 0, 12]) {
+      for (const detune of detunes) {
         const osc = ctx.createOscillator();
-        osc.type = 'sawtooth';
+        osc.type = type;
         osc.frequency.value = freq;
         osc.detune.value = detune;
         osc.connect(low);
@@ -88,77 +87,193 @@ function annieSing() {
       }
     }
   };
-  const bass = (at, freq, length) => {
-    const osc = ctx.createOscillator(), gain = ctx.createGain(), low = ctx.createBiquadFilter();
-    osc.type = 'sawtooth';
-    osc.frequency.value = freq;
-    low.frequency.value = 500;
-    envelope(gain, at, 0.5, length);
-    osc.connect(low).connect(gain).connect(band);
-    osc.start(at);
-    osc.stop(at + length);
-  };
-
-  // Four on the floor, claps on two and four, hats on the off-beats, an
-  // octave-bouncing bass and brass stabs over C, G, Am, F. Enough bars to
-  // outlast any roll; the finish cuts it short.
-  const beat = 60 / ANNIE_BPM;
-  const chords = [
-    [65.4, [261.6, 329.6, 392]],
-    [61.7, [246.9, 293.7, 392]],
-    [55, [220, 261.6, 329.6]],
-    [87.3, [220, 261.6, 349.2]],
-  ];
-  const start = ctx.currentTime + 0.05;
-  for (let bar = 0; bar < 16; bar++) {
-    const t0 = start + bar * 4 * beat;
-    const [root, chord] = chords[bar % chords.length];
-    for (let b = 0; b < 4; b++) {
-      kick(t0 + b * beat, band);
-      if (b % 2) clap(t0 + b * beat);
-      crash(t0 + (b + 0.5) * beat, band, 0.15, 0.05);
-    }
-    for (let n = 0; n < 8; n++) bass(t0 + n * beat / 2, n % 2 ? root * 2 : root, beat / 2);
-    horn(t0, chord, beat * 1.2, band, 0.1);
-    horn(t0 + 2.5 * beat, chord, beat * 0.4, band, 0.08);
-  }
-
-  const overlay = document.createElement('div');
-  overlay.id = 'annie';
-  overlay.innerHTML = '<div class="annie-singer" aria-hidden="true">✻</div><p class="annie-line"></p><button type="button" class="annie-stop">Stop</button>';
-  document.body.append(overlay);
-  const line = overlay.querySelector('.annie-line');
-  const singer = overlay.querySelector('.annie-singer');
-  annie = { ctx, out, band, start, beat, horn, kick, crash, overlay, line, ending: false };
-  overlay.querySelector('.annie-stop').addEventListener('click', annieStop);
-  annieSay('Well, alright now. Let\'s go get some lunch.');
-
-  const tick = () => {
-    if (!annie || annie.ctx !== ctx) return;
-    const elapsed = ctx.currentTime - start;
-    if (!annie.ending) line.textContent = ANNIE_SHOUTS[Math.max(0, Math.floor(elapsed / beat)) % ANNIE_SHOUTS.length];
-    const pulse = annie.ending ? 0 : 1 - ((elapsed / beat) % 1);
-    singer.style.transform = `scale(${1 + pulse * 0.35}) rotate(${Math.sin(elapsed * 4) * 18}deg)`;
-    annie.frame = requestAnimationFrame(tick);
-  };
-  annie.frame = requestAnimationFrame(tick);
+  return { hiss, kick, snare, tone };
 }
 
-// Cut the band, hit one big C chord with a crash, and thank the room.
+// Start a song: a fresh audio context, a band bus the finish can cut dead,
+// and the corner banner with `art` beside the line.
+function annieStart(kind, art) {
+  annieStop();
+  const ctx = new AudioContext();
+  const out = ctx.createGain();
+  out.connect(ctx.destination);
+  const band = ctx.createGain();
+  band.connect(out);
+  const overlay = document.createElement('div');
+  overlay.id = 'annie';
+  overlay.innerHTML = `${art}<p class="annie-line"></p><button type="button" class="annie-stop">Stop</button>`;
+  document.body.append(overlay);
+  overlay.querySelector('.annie-stop').addEventListener('click', annieStop);
+  annie = { kind, ctx, out, band, kit: annieKit(ctx), overlay, line: overlay.querySelector('.annie-line'), ending: false };
+  return annie;
+}
+
+function annieSing() {
+  const song = annieStart('simulation', '<canvas class="annie-pulsar" width="96" height="72" aria-hidden="true"></canvas>');
+  const { ctx, band, line } = song;
+  const { hiss, kick, snare, tone } = song.kit;
+
+  // A drum machine: kick on every beat with a sixteenth-note roll at the end of
+  // every other bar, claps on two and four, open hats on the off-beats. Under
+  // it an octave-jumping sequenced bass over Dm, C, F, Bb, a bass guitar
+  // playing the melody high up the neck, and a string pad. Enough bars to
+  // outlast any roll; the finish cuts it.
+  const beat = 60 / ANNIE_BPM;
+  const roots = [73.4, 65.4, 87.3, 58.3];
+  const chords = [
+    [293.7, 349.2, 440],
+    [261.6, 329.6, 392],
+    [349.2, 440, 523.3],
+    [293.7, 349.2, 466.2],
+  ];
+  const hooks = [
+    [293.7, 0, 349.2, 329.6, 293.7, 0, 220, 261.6],
+    [261.6, 0, 329.6, 293.7, 261.6, 0, 196, 220],
+    [349.2, 0, 440, 392, 349.2, 0, 293.7, 329.6],
+    [293.7, 0, 349.2, 293.7, 233.1, 0, 220, 0],
+  ];
+  const start = ctx.currentTime + 0.05;
+  for (let bar = 0; bar < 24; bar++) {
+    const t0 = start + bar * 4 * beat;
+    const root = roots[bar % 4], chord = chords[bar % 4];
+    for (let b = 0; b < 4; b++) {
+      kick(band, t0 + b * beat);
+      if (b % 2) snare(band, t0 + b * beat, 0.6);
+      hiss(band, t0 + (b + 0.5) * beat, 'highpass', 6000, 0.12, 0.12);
+    }
+    if (bar % 2) for (let n = 13; n < 16; n++) kick(band, t0 + n * beat / 4);
+    for (let n = 0; n < 16; n++) tone(band, t0 + n * beat / 4, [n % 2 ? root * 2 : root], beat / 4, { peak: 0.3, open: 1800, shut: 400, attack: 0.003 });
+    hooks[bar % 4].forEach((freq, n) => {
+      if (freq) tone(band, t0 + n * beat / 2, [freq], beat / 2, { peak: 0.14, open: 1600, detunes: [-8, 8] });
+    });
+    tone(band, t0, chord, 4 * beat, { peak: 0.03, open: 2200, attack: 0.3, detunes: [-14, 0, 14] });
+  }
+  annieSay('How does it feel?', 0.9, 0.85);
+
+  const pulsar = song.overlay.querySelector('.annie-pulsar').getContext('2d');
+  const tick = () => {
+    if (annie !== song) return;
+    const elapsed = ctx.currentTime - start;
+    if (!song.ending) line.textContent = ANNIE_SHOUTS[Math.max(0, Math.floor(elapsed / beat / 4)) % ANNIE_SHOUTS.length];
+    annieDraw(pulsar, elapsed, song.ending ? 0 : 1 - ((elapsed / beat) % 1));
+    song.frame = requestAnimationFrame(tick);
+  };
+  song.frame = requestAnimationFrame(tick);
+}
+
+// Stacked lines, each peaked in the middle; drawn top down, each one filled
+// black underneath so it hides the lines behind it.
+function annieDraw(g, t, pulse) {
+  const { width, height } = g.canvas;
+  g.fillStyle = '#000';
+  g.fillRect(0, 0, width, height);
+  g.strokeStyle = '#fff';
+  g.lineWidth = 1;
+  for (let i = 0; i < 14; i++) {
+    const base = 14 + i * 4;
+    g.beginPath();
+    g.moveTo(0, base);
+    for (let x = 0; x <= width; x += 2) {
+      const middle = Math.exp(-(((x - width / 2) / (width / 7)) ** 2));
+      const wiggle = Math.abs(Math.sin(x * 0.31 + i * 1.7 + t * 3) + Math.sin(x * 0.13 - i * 0.9 + t * 1.3));
+      g.lineTo(x, base - middle * wiggle * (5 + pulse * 7));
+    }
+    g.lineTo(width, height);
+    g.lineTo(0, height);
+    g.closePath();
+    g.fill();
+    g.stroke();
+  }
+}
+
+// Cut the band, leave one snare and a low pad ringing, and name the pick.
 function annieFinish(name) {
-  if (!annie || annie.ending) return;
-  const { ctx, band, out, horn, kick, crash, line } = annie;
-  annie.ending = true;
+  const song = annie;
+  if (!song || song.kind !== 'simulation' || song.ending) return;
+  const { ctx, band, out, line } = song;
+  const { kick, snare, tone } = song.kit;
+  song.ending = true;
   const now = ctx.currentTime;
   band.gain.setValueAtTime(band.gain.value, now);
   band.gain.linearRampToValueAtTime(0, now + 0.03);
-  kick(now + 0.03, out);
-  crash(now + 0.03, out, 0.5, 2.5);
-  horn(now + 0.03, [130.8, 261.6, 329.6, 392, 523.3], 2.6, out, 0.1);
-  line.textContent = name ? `${name}. Thank you very much.` : 'Thank you very much.';
-  annieSay('Thank you. Thank you very much.');
-  const ctxNow = ctx;
-  setTimeout(() => { if (annie?.ctx === ctxNow) annieStop(); }, 3500);
+  kick(out, now + 0.03);
+  snare(out, now + 0.03);
+  tone(out, now + 0.03, [73.4, 293.7, 349.2, 440], 3, { peak: 0.05, open: 1200, attack: 0.05, detunes: [-10, 10] });
+  line.textContent = name ? `${name}. True faith.` : 'True faith.';
+  annieSay(line.textContent, 0.9, 0.85);
+  setTimeout(() => { if (annie === song) annieStop(); }, 3500);
+}
+
+// Four bars of I, IV, I, V in a random key and one of three styles, then a
+// last chord. Never cuts into the simulation's song.
+function elvisSing(name) {
+  if (annie?.kind === 'simulation') return;
+  const song = annieStart('elvis', '<div class="annie-singer" aria-hidden="true">✻</div>');
+  const { ctx, band, out, line } = song;
+  const { hiss, kick, snare, tone } = song.kit;
+  const key = 82.4 * 2 ** (Math.floor(Math.random() * 7 - 3) / 12);
+  const note = semis => key * 2 ** (semis / 12);
+  const triad = root => [24, 28, 31].map(s => note(root + s));
+  const roots = [0, 5, 0, 7];
+  const style = pickOne(['rockabilly', 'vegas', 'ballad']);
+  const bpm = { rockabilly: 168, vegas: 132, ballad: 76 }[style];
+  const beat = 60 / bpm;
+  const bars = style === 'ballad' ? 2 : 4;
+  const start = ctx.currentTime + 0.05;
+
+  for (let bar = 0; bar < bars; bar++) {
+    const t0 = start + bar * 4 * beat;
+    const root = style === 'ballad' ? [0, 5][bar] : roots[bar];
+    const chord = triad(root);
+    if (style === 'rockabilly') {
+      // Walking bass, slap-back guitar chops on two and four, a light snare.
+      [0, 4, 7, 9].forEach((s, b) => tone(band, t0 + b * beat, [note(root + s)], beat, { peak: 0.4, open: 600 }));
+      for (const b of [1, 3]) {
+        tone(band, t0 + b * beat, chord, 0.15, { type: 'square', peak: 0.04, open: 2500, shut: 400, attack: 0.003 });
+        tone(band, t0 + b * beat + 0.11, chord, 0.15, { type: 'square', peak: 0.015, open: 2000, shut: 400, attack: 0.003 });
+        snare(band, t0 + b * beat, 0.3);
+      }
+      kick(band, t0);
+      kick(band, t0 + 2 * beat);
+    } else if (style === 'vegas') {
+      // Kick on every beat, a crash on two and four, an eighth-note bass walk
+      // and brass stabs.
+      for (let b = 0; b < 4; b++) {
+        kick(band, t0 + b * beat);
+        if (b % 2) hiss(band, t0 + b * beat, 'highpass', 1500, 0.35, 0.12);
+      }
+      [0, 0, 3, 5, 7, 5, 3, -5].forEach((s, n) => tone(band, t0 + n * beat / 2, [note(root + s)], beat / 2, { peak: 0.5, open: 500 }));
+      tone(band, t0 + 1.5 * beat, chord, beat * 0.4, { peak: 0.1, shut: 700, attack: 0.02, detunes: [-12, 0, 12] });
+      tone(band, t0 + 3 * beat, chord, beat * 0.6, { peak: 0.1, shut: 700, attack: 0.02, detunes: [-12, 0, 12] });
+    } else {
+      // A slow organ chord over a soft bass, in a lilting three.
+      tone(band, t0, chord, 4 * beat, { type: 'sine', peak: 0.08, attack: 0.3 });
+      tone(band, t0, [note(root + 12)], 4 * beat, { type: 'triangle', peak: 0.2, open: 400, attack: 0.05 });
+      for (const b of [0, 4 / 3, 8 / 3]) tone(band, t0 + b * beat, [note(root + 31)], beat, { type: 'triangle', peak: 0.04, open: 2000 });
+    }
+  }
+
+  const end = start + bars * 4 * beat;
+  if (style === 'ballad') tone(out, end, triad(0), 2.5, { type: 'sine', peak: 0.1, attack: 0.1 });
+  else {
+    kick(out, end);
+    hiss(out, end, 'highpass', 1500, 0.5, 2);
+    tone(out, end, [note(12), ...triad(0), note(36)], 2, { peak: 0.08, shut: 700, attack: 0.02, detunes: [-12, 0, 12] });
+  }
+
+  const said = pickOne(ELVIS_LINES);
+  line.textContent = name ? `${name}. ${said}` : said;
+  annieSay(name ? `${name}. ${said}` : said, 0.7, 0.85);
+  const singer = song.overlay.querySelector('.annie-singer');
+  const tick = () => {
+    if (annie !== song) return;
+    const elapsed = ctx.currentTime - start;
+    const pulse = elapsed < end - start ? 1 - ((elapsed / beat) % 1) : 0;
+    singer.style.transform = `scale(${1 + pulse * 0.3}) rotate(${Math.sin(elapsed * 3) * 12}deg)`;
+    song.frame = requestAnimationFrame(tick);
+  };
+  song.frame = requestAnimationFrame(tick);
+  setTimeout(() => { if (annie === song) annieStop(); }, (end - ctx.currentTime + 2.2) * 1000);
 }
 
 function annieStop() {
@@ -175,3 +290,4 @@ document.addEventListener('click', event => {
   if (event.target.closest('#simulate') && !event.target.closest('#simulate').disabled) annieSing();
 }, true);
 document.addEventListener('lunch-decided', event => annieFinish(event.detail));
+document.addEventListener('place-picked', event => elvisSing(event.detail));

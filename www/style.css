@@ -503,11 +503,17 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   line-height: 1;
   color: #d97757;
 }
+.annie-pulsar {
+  flex: none;
+  width: 64px;
+  height: 48px;
+}
 .annie-line {
   flex: 1;
   margin: 0;
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
   line-height: 1.2;
   color: var(--ink);
 }

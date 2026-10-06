@@ -314,9 +314,9 @@ function start({ office, home, places, updated, tier_cuts, max_minutes, cuisine_
   function buildRow(p) {
     p.row = rowFor(p);
     markStar(p);
-    p.row.addEventListener('click', () => openCard(p));
+    p.row.addEventListener('click', () => pickPlace(p));
     p.row.addEventListener('keydown', event => {
-      if (event.key === 'Enter') openCard(p);
+      if (event.key === 'Enter') pickPlace(p);
     });
   }
 
@@ -334,7 +334,7 @@ function start({ office, home, places, updated, tier_cuts, max_minutes, cuisine_
       tip.append(el('div', 'name', p.name), el('div', 'meta', `${meta(p)} · ${p.score.toFixed(1)}`));
       return tip;
     }, { direction: 'top', offset: [0, -TIER_RADIUS[tier(p)] - 2], className: 'pin-tip' });
-    p.marker.on('click', () => openCard(p));
+    p.marker.on('click', () => pickPlace(p));
   }
   useBase(places, state.base);
   for (const p of places) buildRow(p);
@@ -364,6 +364,12 @@ function start({ office, home, places, updated, tier_cuts, max_minutes, cuisine_
       last.row.classList.add('selected');
       last.row.scrollIntoView({ block: 'nearest' });
     }
+  }
+
+  // A place the user chose, as opposed to one the simulation landed on.
+  function pickPlace(place) {
+    document.dispatchEvent(new CustomEvent('place-picked', { detail: place.name }));
+    openCard(place);
   }
 
   function openCard(place, banner) {
@@ -688,7 +694,7 @@ function start({ office, home, places, updated, tier_cuts, max_minutes, cuisine_
   $('search').addEventListener('keydown', event => {
     if (event.key === 'Enter' && state.query) {
       const [first] = searchPlaces(places, state.query);
-      if (first) openCard(first);
+      if (first) pickPlace(first);
     } else if (event.key === 'Escape' && state.query) {
       // Handled here so the page-wide Escape does not also close a card.
       event.stopPropagation();
