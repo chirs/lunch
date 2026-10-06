@@ -1,5 +1,4 @@
-// Plays on every visit. Browsers hold sound until the first click or key, so it
-// starts then.
+// Plays whenever Run simulation is pressed.
 
 const ANNIE_BPM = 104;
 const ANNIE_LYRICS = [
@@ -129,13 +128,7 @@ function annieStop() {
   annie = null;
 }
 
-const annieStart = () => {
-  document.removeEventListener('pointerdown', annieStart, true);
-  document.removeEventListener('keydown', annieStart, true);
-  annieSing();
-};
-document.addEventListener('pointerdown', annieStart, true);
-document.addEventListener('keydown', annieStart, true);
+document.getElementById('simulate').addEventListener('click', annieSing);
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') annieStop();
 }, true);
