@@ -1,29 +1,19 @@
 // Two songs, both synthesized. Run simulation plays a New Order-style
 // sequenced dance loop under a pulsar plot like Joy Division's Unknown Pleasures
 // cover, and fades out on the pick (app.js fires 'lunch-decided'). Picking a place by
-// hand plays a short Elvis number in a random style and key
-// ('place-picked').
+// hand sometimes plays a short Elvis number in a random style and key
+// ('place-picked'). The Sound button in the footer mutes both, remembered in
+// local storage.
 
 const ANNIE_BPM = 130;
 const ANNIE_SHOUTS = ['BLUE MONDAY', 'BIZARRE LOVE TRIANGLE', 'WHERE WE EATIN\'', 'TRUE FAITH', 'CEREMONY', 'REGRET'];
 const ELVIS_LINES = ['Well, alright now.', 'Thank you very much.', 'Takin\' care of business.', 'Let\'s go, baby.', 'Now that\'s lunch.'];
+const ELVIS_CHANCE = 1 / 12;
+const SOUND_KEY = 'lunch-sound';
 
 let annie = null;
-
-function annieVoice() {
-  const voices = speechSynthesis.getVoices().filter(v => v.lang.startsWith('en'));
-  return voices.find(v => /aaron|alex|daniel|tom|reed|male/i.test(v.name)) ?? voices[0];
-}
-
-function annieSay(text, pitch, rate) {
-  if (!('speechSynthesis' in window)) return;
-  speechSynthesis.cancel();
-  const words = new SpeechSynthesisUtterance(text);
-  words.voice = annieVoice() ?? null;
-  words.pitch = pitch;
-  words.rate = rate;
-  speechSynthesis.speak(words);
-}
+let annieMuted = false;
+try { annieMuted = localStorage.getItem(SOUND_KEY) === 'off'; } catch {}
 
 const pickOne = list => list[Math.floor(Math.random() * list.length)];
 
@@ -123,6 +113,7 @@ function annieStart(kind, art) {
 }
 
 function annieSing() {
+  if (annieMuted) return;
   const song = annieStart('simulation', '<canvas class="annie-pulsar" width="96" height="72" aria-hidden="true"></canvas>');
   const { ctx, band, room, line } = song;
   const { hiss, kick, clap, tone } = song.kit;
@@ -166,7 +157,6 @@ function annieSing() {
     for (let n = 0; n < 16; n++) tone(room, t0 + n * beat / 4, [chord[(n * 2) % 3] * 2], beat / 5, { type: 'square', peak: 0.02, open: 4000, shut: 1200, attack: 0.003 });
     tone(room, t0, chord, 4 * beat, { type: 'triangle', peak: 0.06, attack: 0.25, detunes: [-14, 0, 14] });
   }
-  annieSay('How does it feel?', 0.9, 0.85);
 
   const pulsar = song.overlay.querySelector('.annie-pulsar').getContext('2d');
   const tick = () => {
@@ -219,14 +209,13 @@ function annieFinish(name) {
   clap(room, now + 0.03, 0.8);
   tone(room, now + 0.03, [73.4, 293.7, 349.2, 440], 5, { type: 'triangle', peak: 0.12, attack: 0.05, detunes: [-14, 0, 14] });
   line.textContent = name ? `${name}. True faith.` : 'True faith.';
-  annieSay(line.textContent, 0.9, 0.85);
   setTimeout(() => { if (annie === song) annieStop(); }, 6200);
 }
 
 // Four bars of I, IV, I, V in a random key and one of three styles, then a
 // last chord. Never cuts into the simulation's song.
 function elvisSing(name) {
-  if (annie?.kind === 'simulation') return;
+  if (annie?.kind === 'simulation' || Math.random() >= ELVIS_CHANCE) return;
   const song = annieStart('elvis', '<div class="annie-singer" aria-hidden="true">✻</div>');
   const { ctx, band, out, line } = song;
   const { hiss, kick, snare, tone } = song.kit;
@@ -282,7 +271,6 @@ function elvisSing(name) {
 
   const said = pickOne(ELVIS_LINES);
   line.textContent = name ? `${name}. ${said}` : said;
-  annieSay(name ? `${name}. ${said}` : said, 0.7, 0.85);
   const singer = song.overlay.querySelector('.annie-singer');
   const tick = () => {
     if (annie !== song) return;
@@ -300,7 +288,6 @@ function annieStop() {
   cancelAnimationFrame(annie.frame);
   annie.ctx.close();
   annie.overlay.remove();
-  if ('speechSynthesis' in window) speechSynthesis.cancel();
   annie = null;
 }
 
@@ -309,4 +296,17 @@ document.addEventListener('click', event => {
   if (event.target.closest('#simulate') && !event.target.closest('#simulate').disabled) annieSing();
 }, true);
 document.addEventListener('lunch-decided', event => annieFinish(event.detail));
-document.addEventListener('place-picked', event => elvisSing(event.detail));
+document.addEventListener('place-picked', event => { if (!annieMuted) elvisSing(event.detail); });
+
+const soundButton = document.getElementById('sound');
+const showSound = () => {
+  soundButton.textContent = annieMuted ? 'Sound off' : 'Sound on';
+  soundButton.setAttribute('aria-pressed', String(!annieMuted));
+};
+soundButton.addEventListener('click', () => {
+  annieMuted = !annieMuted;
+  if (annieMuted) annieStop();
+  try { localStorage.setItem(SOUND_KEY, annieMuted ? 'off' : 'on'); } catch {}
+  showSound();
+});
+showSound();

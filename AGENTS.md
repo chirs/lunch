@@ -213,6 +213,11 @@ An unavailable shortlist does not fall back to unshortlisted places. The list
 and map remain available for browsing all matching places. Eligible counts
 refresh every minute, on returning to the tab, and when starting a simulation.
 
+`annie.js` scores the simulation with a synthesized New Order-style loop that
+fades out on the pick, and plays a short Elvis number on about one in twelve
+hand-picked places. No speech; that was too much. The footer's Sound button
+mutes both and is remembered in local storage.
+
 The quality tiers (pin color and size) are cut at `tier_cuts` in
 `places.json`, which `update.py` sets so each outer tier holds about a fifth of
 the places. The pin ramp is one hue, dim to bright, because on a dark map the

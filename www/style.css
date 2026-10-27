@@ -379,7 +379,9 @@ h2, .simulating .name { margin: 0; font-size: 27px; line-height: 1.15; font-weig
 
 /* Footer */
 #foot { display: grid; gap: 8px; padding: 12px var(--gutter) 14px; border-top: 1px solid var(--line); }
-#lunch-plan { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--muted); }
+#foot-row { display: flex; align-items: center; gap: 8px; }
+#sound { flex: none; font: 12px var(--mono); }
+#lunch-plan { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--muted); }
 #meal-duration { flex: none; width: 90px; height: 32px; }
 #simulate { height: 44px; font-size: 13px; letter-spacing: 0.12em; }
 #counts { font: 12px var(--mono); color: var(--muted); text-align: center; }
