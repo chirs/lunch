@@ -214,8 +214,9 @@ and map remain available for browsing all matching places. Eligible counts
 refresh every minute, on returning to the tab, and when starting a simulation.
 
 `annie.js` scores the simulation with a synthesized New Order-style loop that
-fades out on the pick, and plays a short Elvis number on about one in twelve
-hand-picked places. No speech; that was too much. The footer's Sound button
+fades out on the pick. Picking a place by hand rings a bell on a random
+pentatonic note, a low gong about one time in six, and about one time in twelve
+a short Elvis number instead. No speech; that was too much. The footer's Sound button
 mutes both and is remembered in local storage.
 
 The quality tiers (pin color and size) are cut at `tier_cuts` in

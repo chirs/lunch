@@ -1,17 +1,21 @@
 // Two songs, both synthesized. Run simulation plays a New Order-style
 // sequenced dance loop under a pulsar plot like Joy Division's Unknown Pleasures
 // cover, and fades out on the pick (app.js fires 'lunch-decided'). Picking a place by
-// hand sometimes plays a short Elvis number in a random style and key
-// ('place-picked'). The Sound button in the footer mutes both, remembered in
-// local storage.
+// hand ('place-picked') rings a bell, now and then a gong, and once in a while
+// plays a short Elvis number in a random style and key. The Sound button in the
+// footer mutes all of it, remembered in local storage.
 
 const ANNIE_BPM = 130;
 const ANNIE_SHOUTS = ['BLUE MONDAY', 'BIZARRE LOVE TRIANGLE', 'WHERE WE EATIN\'', 'TRUE FAITH', 'CEREMONY', 'REGRET'];
 const ELVIS_LINES = ['Well, alright now.', 'Thank you very much.', 'Takin\' care of business.', 'Let\'s go, baby.', 'Now that\'s lunch.'];
 const ELVIS_CHANCE = 1 / 12;
+const GONG_CHANCE = 1 / 6;
+// A major pentatonic from A4, so any run of clicks sounds like a tune.
+const BELL_NOTES = [440, 493.9, 554.4, 659.3, 740, 880];
 const SOUND_KEY = 'lunch-sound';
 
 let annie = null;
+let ringer = null;
 let annieMuted = false;
 try { annieMuted = localStorage.getItem(SOUND_KEY) === 'off'; } catch {}
 
@@ -85,6 +89,19 @@ function annieKit(ctx) {
   return { hiss, kick, snare, clap, tone };
 }
 
+// A bus that feeds `dest` both dry and through a long reverb.
+function annieRoom(ctx, dest) {
+  const room = ctx.createGain(), reverb = ctx.createConvolver();
+  const tail = ctx.createBuffer(2, ctx.sampleRate * 2, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) {
+    tail.getChannelData(c).forEach((_, n, data) => { data[n] = (Math.random() * 2 - 1) * (1 - n / data.length) ** 3; });
+  }
+  reverb.buffer = tail;
+  room.connect(dest);
+  room.connect(reverb).connect(dest);
+  return room;
+}
+
 // Start a song: a fresh audio context, a band bus the finish can cut or fade,
 // a room that feeds the band through a long reverb, and the corner banner with
 // `art` beside the line.
@@ -95,14 +112,7 @@ function annieStart(kind, art) {
   out.connect(ctx.destination);
   const band = ctx.createGain();
   band.connect(out);
-  const room = ctx.createGain(), reverb = ctx.createConvolver();
-  const tail = ctx.createBuffer(2, ctx.sampleRate * 2, ctx.sampleRate);
-  for (let c = 0; c < 2; c++) {
-    tail.getChannelData(c).forEach((_, n, data) => { data[n] = (Math.random() * 2 - 1) * (1 - n / data.length) ** 3; });
-  }
-  reverb.buffer = tail;
-  room.connect(band);
-  room.connect(reverb).connect(band);
+  const room = annieRoom(ctx, band);
   const overlay = document.createElement('div');
   overlay.id = 'annie';
   overlay.innerHTML = `${art}<p class="annie-line"></p><button type="button" class="annie-stop">Stop</button>`;
@@ -212,10 +222,44 @@ function annieFinish(name) {
   setTimeout(() => { if (annie === song) annieStop(); }, 6200);
 }
 
+// One struck partial: a sine that rings down over `length` seconds.
+function annieStrike(ctx, dest, at, freq, peak, length, attack = 0.002) {
+  const osc = ctx.createOscillator(), gain = ctx.createGain();
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.0001, at);
+  gain.gain.exponentialRampToValueAtTime(peak, at + attack);
+  gain.gain.exponentialRampToValueAtTime(0.0001, at + length);
+  osc.connect(gain).connect(dest);
+  osc.start(at);
+  osc.stop(at + length);
+}
+
+// A bell on a random pentatonic note, or now and then a low gong: sine
+// partials at a bell's out-of-tune ratios, the higher ones dying first. One
+// audio context is kept for these; no banner.
+function annieRing() {
+  if (annie?.kind === 'simulation') return;
+  if (!ringer) {
+    const ctx = new AudioContext();
+    ringer = { ctx, room: annieRoom(ctx, ctx.destination) };
+  }
+  const { ctx, room } = ringer;
+  const at = ctx.currentTime + 0.01;
+  if (Math.random() < GONG_CHANCE) {
+    const root = 65 + Math.random() * 20;
+    [[1, 0.25, 5], [1.48, 0.12, 4], [2.13, 0.1, 3.5], [2.78, 0.06, 3], [3.6, 0.04, 2], [5.1, 0.02, 1.5]]
+      .forEach(([ratio, peak, length]) => annieStrike(ctx, room, at, root * ratio, peak, length, 0.08));
+  } else {
+    const root = pickOne(BELL_NOTES);
+    [[1, 0.12, 2.5], [2, 0.05, 1.6], [2.76, 0.04, 1.1], [5.4, 0.015, 0.6]]
+      .forEach(([ratio, peak, length]) => annieStrike(ctx, room, at, root * ratio, peak, length));
+  }
+}
+
 // Four bars of I, IV, I, V in a random key and one of three styles, then a
 // last chord. Never cuts into the simulation's song.
 function elvisSing(name) {
-  if (annie?.kind === 'simulation' || Math.random() >= ELVIS_CHANCE) return;
+  if (annie?.kind === 'simulation') return;
   const song = annieStart('elvis', '<div class="annie-singer" aria-hidden="true">✻</div>');
   const { ctx, band, out, line } = song;
   const { hiss, kick, snare, tone } = song.kit;
@@ -296,7 +340,11 @@ document.addEventListener('click', event => {
   if (event.target.closest('#simulate') && !event.target.closest('#simulate').disabled) annieSing();
 }, true);
 document.addEventListener('lunch-decided', event => annieFinish(event.detail));
-document.addEventListener('place-picked', event => { if (!annieMuted) elvisSing(event.detail); });
+document.addEventListener('place-picked', event => {
+  if (annieMuted) return;
+  if (Math.random() < ELVIS_CHANCE) elvisSing(event.detail);
+  else annieRing();
+});
 
 const soundButton = document.getElementById('sound');
 const showSound = () => {
