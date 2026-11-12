@@ -101,6 +101,16 @@ each split piece holding 15 to 19 places, which the capped runs may never
 have reached. Every search now goes into `google_raw.json` under `searched`
 (center, radius, result count), which `left_full()` trusts over the count.
 
+That was a poor return, about 7 calls per place kept: most results were
+places already saved, and what was left in the dense spots mostly had too
+few reviews. The same day a one-off run searched the 133 grid cells 15 to 26
+minutes from home that are over 20 minutes from the office and had never
+been searched for home, nearest first, with no bar pass. It stopped at its
+350-call cap after every cell had been searched once, with 511 split cells
+still queued, and added about 440 places, a call per place and a bit better. So
+home's 15 to 23 minute band now has at least the 20 most popular places in
+every cell, the same as the office's 20 minutes.
+
 Google bills each call once, at the tier of the most expensive field it
 asks for, and each tier has its own free calls. Nearby Search with ratings
 and hours is the Enterprise tier; adding `servesLunch` makes it Enterprise +
