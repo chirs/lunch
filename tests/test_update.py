@@ -135,6 +135,14 @@ def test_left_full_returns_the_pieces_of_circles_full_at_the_old_minimum():
     assert todo[0][:2] == (32.9, -96.9)
 
 
+def test_left_full_searches_nearly_full_pieces_once():
+    cell = (32.9, -96.9, 1500)
+    assert update.left_full([cell], saved_places([(32.9, -96.9)] * 17)) == []
+    piece = (32.9, -96.9, 750)
+    assert update.left_full([piece], saved_places([(32.9, -96.9)] * 17)) == [piece]
+    assert update.left_full([piece], saved_places([(32.9, -96.9)] * 10)) == []
+
+
 def test_left_full_ignores_lunch_bars():
     cell = (32.9, -96.9, 1500)
     assert update.left_full([cell], saved_places([(32.9, -96.9)] * 25, servesLunch=True)) == []

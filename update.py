@@ -47,6 +47,7 @@ MIN_CELL_METERS = 375  # two splits: 1500 -> 750 -> 375
 # A --home top-up starts below the circles earlier runs left full, so it may
 # split two more times.
 HOME_MIN_CELL_METERS = MIN_CELL_METERS / 4
+NEARLY_FULL = 15
 # No bar pass: near home it never came back full, so it has nothing left.
 HOME_CALLS = 800
 MAX_CALLS = 800  # 1,000 a month are free
@@ -355,8 +356,11 @@ def left_full(cells, saved, searched=(), min_radius=HOME_MIN_CELL_METERS):
     fewer than PAGE_SIZE of them came back short and has nothing more to give,
     and one holding more was full and was split. Those runs stopped splitting
     at MIN_CELL_METERS, so an unlogged circle smaller than that was never
-    searched. Bars from the bar pass are not counted, since that pass saved
-    only the ones serving lunch.
+    searched. Those runs also stopped at their call caps with full circles
+    still queued, so an unlogged piece of a split circle holding nearly
+    PAGE_SIZE places may never have been searched either; it gets one search.
+    Bars from the bar pass are not counted, since that pass saved only the
+    ones serving lunch.
     """
     points = [
         (p["location"]["latitude"], p["location"]["longitude"])
@@ -373,6 +377,9 @@ def left_full(cells, saved, searched=(), min_radius=HOME_MIN_CELL_METERS):
                 todo.append((lat, lon, radius))
                 return
             count = sum(haversine_miles(lat, lon, a, b) * 1609.34 <= radius for a, b in points)
+            if NEARLY_FULL <= count < PAGE_SIZE and radius < CELL_METERS:
+                todo.append((lat, lon, radius))
+                return
         if count >= PAGE_SIZE and radius / 2 >= min_radius:
             for child in split(lat, lon, radius):
                 walk(*child)
@@ -816,7 +823,8 @@ def main():
         if args.home:
             home_cells = reachable_cells([data["home"]], args.home)
             cells = left_full(home_cells, previous["places"].values(), searched.get("restaurant", []))
-            print(f"{len(cells)} circles of {cells[0][2] if cells else 0:.0f} m left to search within {args.home:g} minutes of home")
+            sizes = Counter(f"{radius:.0f} m" for _, _, radius in cells)
+            print(f"{len(cells)} circles left to search within {args.home:g} minutes of home: {dict(sizes)}")
             if args.dry_run:
                 for lat, lon, radius in cells:
                     print(f"  {lat:.5f},{lon:.5f} {radius:.0f} m")
