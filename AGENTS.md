@@ -20,6 +20,7 @@ open work.
 ./update.py            # full refresh; needs GOOGLE_MAPS_API_KEY in .env
 ./update.py --cached   # no Google calls; re-filters the saved results
 ./update.py --near 32.9368,-97.0784,1.5   # top up: search 1.5 miles around a point
+./update.py --home 15 [--dry-run]         # top up: circles near home left full
 .venv/bin/python -m pytest
 ```
 
@@ -89,6 +90,21 @@ the area within 15 minutes of home is covered about as well as the office's
 20 minutes, and home's 15 to 23 minute band south and east holds only what
 other searches caught. Those calls were billed, since October's ratings tier
 was already past its 1,000 free.
+
+On 2026-11-12 `./update.py --home 15` deepened the area within 15 minutes of
+home: 637 restaurant calls, no bar pass, adding about 85 places, mostly in
+Bishop Arts, downtown, Deep Ellum and around Klyde Warren Park. It searched only what earlier runs had left
+full, worked out from the saved places (`left_full()`): a circle holding fewer
+than 20 came back short, one holding more was full and was split. It split
+down to 94 m; 7 of the smallest were still full. It also gave one search to
+each split piece holding 15 to 19 places, which the capped runs may never
+have reached. Every search now goes into `google_raw.json` under `searched`
+(center, radius, result count), which `left_full()` trusts over the count.
+
+Google bills each call once, at the tier of the most expensive field it
+asks for, and each tier has its own free calls. Nearby Search with ratings
+and hours is the Enterprise tier; adding `servesLunch` makes it Enterprise +
+Atmosphere. So the bar pass draws on its own 1,000.
 
 `--near` is the cheap way to fill a known hole: it searches a small circle,
 adds the results to `google_raw.json`, and reruns the rest. `search_cells()`

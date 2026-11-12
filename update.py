@@ -153,6 +153,7 @@ CUISINES = {
     "southwestern_us_restaurant": "American",
     "hamburger_restaurant": "Burgers",
     "pizza_restaurant": "Pizza",
+    "oyster_bar_restaurant": "Seafood",
     "sandwich_shop": "Sandwiches",
     "deli": "Sandwiches",
     "bagel_shop": "Sandwiches",
