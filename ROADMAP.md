@@ -6,7 +6,8 @@ Open work only; completed items are removed as they land (see git history).
 
 ## Data
 
-- [ ] Rerun the full fetch after 2026-11-01, when the free calls reset, to pick up the less popular places in dense spots; the runs so far stopped at their call caps with several hundred small cells unsearched, and the 20 to 23 minute band from either base has never been searched on purpose
+- [ ] Monthly closure check: look up every saved place by ID through Place Details, asking only for `businessStatus`, and drop or flag the closed ones. Check Google's current pricing first; that field should sit on a tier with enough free calls (about 5,000 a month) to cover every place
+- [ ] Some way to pick up new openings now that coverage is essentially complete. Re-searching the grid finds them poorly: a new place rarely makes a full cell's top 20 and needs 20 reviews to be kept. Something cheaper and more targeted, such as adding a place by name, still to be worked out
 - [ ] Replace the seed notes with real reviews as places get visited (`visit.py`)
 - [ ] Bump the score for editorial recognition (D Magazine, Eater, Texas Monthly, Michelin)
 - [ ] Drive times with lunch-hour traffic instead of free-flow
