@@ -7,6 +7,9 @@
     ./update.py --near 32.9368,-97.0784,1.5
                            # top up: search only within 1.5 miles of that point
                            # and add what it finds to the saved results
+    ./update.py --home 15 [--dry-run]
+                           # top up within 15 minutes of home, searching only
+                           # the circles the saved results show were left full
 
 Google's Nearby Search returns at most 20 places per call with no paging, so
 discovery walks a hex grid of circles over the land within a drive of the
@@ -41,6 +44,11 @@ SEARCH_MILES = 14  # about as far as MAX_MINUTES reaches along the freeways
 CELL_SLACK_MINUTES = 3
 CELL_METERS = 1500
 MIN_CELL_METERS = 375  # two splits: 1500 -> 750 -> 375
+# A --home top-up starts below the circles earlier runs left full, so it may
+# split two more times.
+HOME_MIN_CELL_METERS = MIN_CELL_METERS / 4
+# No bar pass: near home it never came back full, so it has nothing left.
+HOME_CALLS = 800
 MAX_CALLS = 800  # 1,000 a month are free
 # Icehouses and sports bars often lack Google's "restaurant" type, so they get
 # a second pass that asks whether each serves lunch. That extra field bills as
@@ -283,7 +291,7 @@ def grid(center, miles):
     return [(lat, lon, CELL_METERS) for lat, lon in centers]
 
 
-def reachable_cells(bases):
+def reachable_cells(bases, max_minutes=MAX_MINUTES + CELL_SLACK_MINUTES):
     """Search circles within SEARCH_MILES and a drive of at least one base.
 
     A plain circle around one base wastes calls on land past the drive cap, and
@@ -300,18 +308,19 @@ def reachable_cells(bases):
     near = [False] * len(cells)
     for base in bases:
         for n, minutes in enumerate(drive_minutes(base, points)):
-            if minutes is not None and minutes <= MAX_MINUTES + CELL_SLACK_MINUTES:
+            if minutes is not None and minutes <= max_minutes:
                 near[n] = True
     kept = [cell for cell, ok in zip(cells, near) if ok]
     print(f"searching {len(kept)} of {len(cells)} cells within {SEARCH_MILES} miles of a base")
     return kept
 
 
-def search_cells(cells, search, max_calls):
+def search_cells(cells, search, max_calls, min_radius=MIN_CELL_METERS, log=None):
     """Search each (lat, lon, radius) circle, splitting any that comes back full.
 
     Cells are searched breadth-first, so when max_calls runs out the whole area
-    has been covered coarsely and only the densest spots are short.
+    has been covered coarsely and only the densest spots are short. Each search
+    is appended to log as [lat, lon, radius, result count].
     """
     cells = deque(cells)
     found, calls, truncated = {}, 0, 0
@@ -319,10 +328,12 @@ def search_cells(cells, search, max_calls):
         lat, lon, radius = cells.popleft()
         results = search(lat, lon, radius)
         calls += 1
+        if log is not None:
+            log.append([round(lat, 6), round(lon, 6), radius, len(results)])
         for place in results:
             found[place["id"]] = place
         if len(results) == PAGE_SIZE:
-            if radius / 2 >= MIN_CELL_METERS:
+            if radius / 2 >= min_radius:
                 cells.extend(split(lat, lon, radius))
             else:
                 truncated += 1
@@ -334,6 +345,41 @@ def search_cells(cells, search, max_calls):
     if truncated:
         print(f"{truncated} smallest cells were still full, so some places there are missing")
     return found
+
+
+def left_full(cells, saved, searched=(), min_radius=HOME_MIN_CELL_METERS):
+    """The circles under cells that earlier restaurant searches left full.
+
+    A logged search says whether a circle came back full. Runs before the log
+    existed are reconstructed from the places they saved: a circle holding
+    fewer than PAGE_SIZE of them came back short and has nothing more to give,
+    and one holding more was full and was split. Those runs stopped splitting
+    at MIN_CELL_METERS, so an unlogged circle smaller than that was never
+    searched. Bars from the bar pass are not counted, since that pass saved
+    only the ones serving lunch.
+    """
+    points = [
+        (p["location"]["latitude"], p["location"]["longitude"])
+        for p in saved
+        if "servesLunch" not in p
+    ]
+    logged = {(lat, lon, radius): count for lat, lon, radius, count in searched}
+    todo = []
+
+    def walk(lat, lon, radius):
+        count = logged.get((round(lat, 6), round(lon, 6), radius))
+        if count is None:
+            if radius < MIN_CELL_METERS:
+                todo.append((lat, lon, radius))
+                return
+            count = sum(haversine_miles(lat, lon, a, b) * 1609.34 <= radius for a, b in points)
+        if count >= PAGE_SIZE and radius / 2 >= min_radius:
+            for child in split(lat, lon, radius):
+                walk(*child)
+
+    for cell in cells:
+        walk(*cell)
+    return todo
 
 
 def open_for_lunch(place):
@@ -725,15 +771,24 @@ def place_details(key, place_id, field_mask):
         return json.load(response)
 
 
-def fetch(cells, max_calls, max_bar_calls):
+def fetch(cells, max_calls, max_bar_calls, min_radius=MIN_CELL_METERS, log=None):
     key = api_key()
+    log = log if log is not None else {}
     print("restaurants:")
-    found = search_cells(cells, lambda *cell: search_nearby(key, *cell, ["restaurant"]), max_calls)
+    found = search_cells(
+        cells,
+        lambda *cell: search_nearby(key, *cell, ["restaurant"]),
+        max_calls,
+        min_radius,
+        log.setdefault("restaurant", []),
+    )
     print("bars that serve lunch:")
     bars = search_cells(
         cells,
         lambda *cell: search_nearby(key, *cell, BAR_TYPES, FIELD_MASK + ",places.servesLunch"),
         max_bar_calls,
+        min_radius,
+        log.setdefault("bar", []),
     )
     found.update({id: bar for id, bar in bars.items() if bar.get("servesLunch")})
     return found
@@ -744,6 +799,11 @@ def main():
     source = parser.add_mutually_exclusive_group()
     source.add_argument("--cached", action="store_true", help="reuse google_raw.json, no API calls")
     source.add_argument("--near", metavar="LAT,LON,MILES", help="search only around a point and add to google_raw.json")
+    source.add_argument(
+        "--home", metavar="MINUTES", type=float,
+        help="search the circles within MINUTES of home that earlier runs left full, and add to google_raw.json",
+    )
+    parser.add_argument("--dry-run", action="store_true", help="with --home, list the circles and stop")
     args = parser.parse_args()
 
     data = json.loads(PLACES.read_text())
@@ -752,14 +812,27 @@ def main():
 
     if not args.cached:
         previous = json.loads(RAW.read_text()) if RAW.exists() else {"places": {}}
-        if args.near:
+        searched = previous.setdefault("searched", {})
+        if args.home:
+            home_cells = reachable_cells([data["home"]], args.home)
+            cells = left_full(home_cells, previous["places"].values(), searched.get("restaurant", []))
+            print(f"{len(cells)} circles of {cells[0][2] if cells else 0:.0f} m left to search within {args.home:g} minutes of home")
+            if args.dry_run:
+                for lat, lon, radius in cells:
+                    print(f"  {lat:.5f},{lon:.5f} {radius:.0f} m")
+                return
+            found = fetch(cells, HOME_CALLS, 0, HOME_MIN_CELL_METERS, searched)
+            raw = {**previous, "places": {**previous["places"], **found}}
+        elif args.near:
             # A top-up keeps the date of the full fetch, which most ratings are from.
             lat, lon, miles = map(float, args.near.split(","))
-            found = fetch(grid({"lat": lat, "lon": lon}, miles), NEAR_CALLS, NEAR_BAR_CALLS)
+            cells = grid({"lat": lat, "lon": lon}, miles)
+            found = fetch(cells, NEAR_CALLS, NEAR_BAR_CALLS, MIN_CELL_METERS, searched)
             raw = {**previous, "places": {**previous["places"], **found}}
         else:
-            found = fetch(reachable_cells(bases), MAX_CALLS, MAX_BAR_CALLS)
-            raw = {"places": found}
+            searched = {}
+            found = fetch(reachable_cells(bases), MAX_CALLS, MAX_BAR_CALLS, MIN_CELL_METERS, searched)
+            raw = {"places": found, "searched": searched}
         raw.setdefault("fetched", datetime.datetime.now().astimezone().date().isoformat())
         for id, place in found.items():
             saved = previous["places"].get(id, {})

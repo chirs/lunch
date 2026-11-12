@@ -109,6 +109,50 @@ def test_search_cells_stops_at_the_call_cap():
     assert len(calls) == 3
 
 
+def test_search_cells_logs_each_search():
+    log = []
+    search_cells([(32.9, -96.9, 1500)], lambda lat, lon, radius: [{"id": "a"}], max_calls=10, log=log)
+    assert log == [[32.9, -96.9, 1500, 1]]
+
+
+def saved_places(points, **fields):
+    return [
+        {"id": f"p{n}", "location": {"latitude": lat, "longitude": lon}, **fields}
+        for n, (lat, lon) in enumerate(points)
+    ]
+
+
+def test_left_full_skips_circles_that_came_back_short():
+    cell = (32.9, -96.9, 1500)
+    assert update.left_full([cell], saved_places([(32.9, -96.9)] * 19)) == []
+
+
+def test_left_full_returns_the_pieces_of_circles_full_at_the_old_minimum():
+    cell = (32.9, -96.9, 1500)
+    todo = update.left_full([cell], saved_places([(32.9, -96.9)] * 25))
+    assert len(todo) == 7
+    assert {radius for _, _, radius in todo} == {update.MIN_CELL_METERS / 2}
+    assert todo[0][:2] == (32.9, -96.9)
+
+
+def test_left_full_ignores_lunch_bars():
+    cell = (32.9, -96.9, 1500)
+    assert update.left_full([cell], saved_places([(32.9, -96.9)] * 25, servesLunch=True)) == []
+
+
+def test_left_full_trusts_the_search_log():
+    cell = (32.9, -96.9, 1500)
+    crowded = saved_places([(32.9, -96.9)] * 25)
+    # Logged as short: no more to find, however many places are saved there.
+    assert update.left_full([cell], crowded, [[32.9, -96.9, 1500, 12]]) == []
+    # Logged as full, with every piece logged as short: nothing left.
+    log = [[*cell, 20]] + [[round(lat, 6), round(lon, 6), r, 3] for lat, lon, r in update.split(*cell)]
+    assert update.left_full([cell], crowded, log) == []
+    # A piece below the old minimum that was never searched is returned.
+    tiny = (32.9, -96.9, update.MIN_CELL_METERS / 2)
+    assert update.left_full([tiny], []) == [tiny]
+
+
 def test_reachable_cells_keeps_cells_within_a_drive_of_either_base(monkeypatch):
     home = {"lat": 32.727, "lon": -96.837}
 
@@ -381,6 +425,41 @@ def test_refresh_preserves_summaries_and_only_looks_up_new_places(monkeypatch, t
     assert ("outside" in result["places"]) is near
     if near:
         assert result["fetched"] == "2026-09-01"
+
+
+def test_home_top_up_searches_only_full_circles_and_logs_them(monkeypatch, tmp_path):
+    places_path, raw_path = tmp_path / "places.json", tmp_path / "google_raw.json"
+    home = {"lat": 32.73, "lon": -96.84}
+    crowded = {
+        p["id"]: google_place(**p, displayName={"text": f"Old {n}"})
+        for n, p in enumerate(saved_places([(home["lat"], home["lon"])] * 25))
+    }
+    raw_path.write_text(json.dumps({"fetched": "2026-10-01", "places": crowded}))
+    places_path.write_text(json.dumps({"office": OFFICE, "home": home, "places": []}))
+    searched = []
+
+    def search(key, lat, lon, radius, types, field_mask=update.FIELD_MASK):
+        searched.append(radius)
+        return [google_place(id=f"new{len(searched)}", primaryType="restaurant",
+                             location={"latitude": lat, "longitude": lon})]
+
+    monkeypatch.setattr(update, "PLACES", places_path)
+    monkeypatch.setattr(update, "RAW", raw_path)
+    monkeypatch.setattr(update, "api_key", lambda: "test-key")
+    monkeypatch.setattr(update, "search_nearby", search)
+    monkeypatch.setattr(update, "reachable_cells", lambda bases, minutes: [(home["lat"], home["lon"], 1500)])
+    monkeypatch.setattr(update, "place_details", lambda *args: {})
+    monkeypatch.setattr(update, "drive_minutes", lambda base, places: [5.0] * len(places))
+    monkeypatch.setattr("sys.argv", ["update.py", "--home", "15"])
+
+    update.main()
+
+    result = json.loads(raw_path.read_text())
+    assert searched == [update.MIN_CELL_METERS / 2] * 7
+    assert result["fetched"] == "2026-10-01"
+    assert set(crowded) < set(result["places"])
+    assert len(result["searched"]["restaurant"]) == 7
+    assert result["searched"]["bar"] == []
 
 
 def test_the_name_beats_fast_food():
