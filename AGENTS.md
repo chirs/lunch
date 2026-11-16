@@ -165,7 +165,7 @@ that runs past midnight stays on the day it opens. Periods lasting at least
 to the places that changed.
 
 `notes`, `my_rating`, `my_cuisine`, `visited` and `hidden` are hand-written per
-place and survive every run. `my_rating` replaces the computed score and
+place and survive every run, as does `lists` in the head. `my_rating` replaces the computed score and
 `my_cuisine` the computed cuisine; `visited` is `true` or a `YYYY-MM-DD` date;
 `hidden: true` removes a place from the site. The
 script prints any hand-annotated place that Google no longer returns instead
@@ -181,6 +181,39 @@ Record a visit with `visit.py`, then commit, push and deploy:
 
 Any part of the name works; an ambiguous name lists the candidates and changes
 nothing. `--notes` is the review and overwrites the existing notes.
+
+Each person's list of places to try is kept under `lists` in the head of
+`places.json`: a title and place IDs, in the order they were added. Chris's
+came from a diary list for 2026; Mark's is an empty placeholder. Curate them
+with `lists.py`, then commit, push and deploy:
+
+```bash
+./lists.py chris                               # print the list
+./lists.py chris "nuri" "claremont"            # add, by any part of each name
+./lists.py chris "Maiden Fort Worth" --search  # add a place Google must be asked for
+./lists.py chris "nuri" --remove
+```
+
+A name is looked for among the site's places, then in `google_raw.json`, which
+still holds what the lunch rules dropped. `--search` makes one Text Search
+call per name (the Enterprise tier, its own SKU and free calls), takes the top
+result and saves it to `google_raw.json`, so name the town when the name is
+common and check the address it prints. A wrong or ambiguous name stops the
+run before anything changes. Each run redoes the `--cached` steps
+(`rebuild()`), which takes a minute or two because OSRM re-times every saved
+place that is out of range, so give it several names at once.
+
+A listed place skips every rule in step 3, the drive-time cap and the
+nearest-branch rule. One that would otherwise have been dropped is written
+with `list_only: true`: the site shows it on its list and in "Find a place"
+and nowhere else, and it is left out of the average, the scores of other
+places and the tier cuts. Eleven of Chris's eighteen are list-only: eight
+dinner places and one each in Allen, Arlington and Frisco. The diary had
+nineteen. Maiden in Fort Worth has closed for good and was left off, and
+Purépecha has no Google listing of its own, so Revolver Taco Lounge, which
+houses it, stands in. Five of the new places were given a `my_cuisine`. Taking a place
+off its list puts it back under the usual rules. A new list is added by hand
+in `places.json`.
 
 Storing Google ratings and showing them on a non-Google map are both outside
 Google's Places terms. That was a deliberate choice for a small personal site;
@@ -215,9 +248,16 @@ view" limits the list, the counts and the simulation to the visible map and
 follows it as it moves; the pins are not limited, so panning still finds them,
 and the drive-time thumbs stop reframing the map while it is on.
 
+The Show dropdown also holds each person's list. With a list on show, the
+list, pins, counts and simulation hold just its places; the drive-time range
+is switched off and dimmed, since a list reaches past it; the other filters
+and the sort still apply; the summary counts how many are visited; and the
+simulation picks from the list even when there is a shortlist. Choosing or
+leaving a list reframes the map. There are no logins: the lists are data.
+
 "Find a place" in the header looks up places by part of the name, ignoring
 case, accents and apostrophes, and ignoring every filter, so a place the
-filters hide still turns up. Names that start with the text come first, then
+filters hide still turns up, as does one kept only for a list. Names that start with the text come first, then
 names with a word that starts with it. Enter opens the top match; Escape or
 an empty box brings back the filtered list. Pins, counts and the simulation
 keep following the filters.
