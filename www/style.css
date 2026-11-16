@@ -163,6 +163,7 @@ h1::before { content: ""; width: 9px; height: 9px; border-radius: 50%; backgroun
   cursor: pointer;
 }
 @media (pointer: coarse) { :root { --thumb: 30px; } }
+.range:has(input:disabled) { opacity: 0.35; }
 .range input:focus-visible { outline: none; }
 .range input:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--accent); }
 .range input:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 2px var(--accent); }

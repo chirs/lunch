@@ -190,16 +190,19 @@ function directionsUrl(place, base) {
 
 // Points every place's minutes at one base, and marks the branch of each name
 // nearest to it; farther branches of the same name stay out of the list unless
-// hand-annotated, as update.py does for a single base.
+// hand-annotated, as update.py does for a single base. A place kept only for
+// somebody's list (too far, or not open for lunch) is no branch at all: it
+// shows on its list and in a search, and nowhere else.
 function useBase(places, base) {
   const nearest = new Map();
   for (const p of places) {
     p.minutes = p.drive[base] ?? Infinity;
     const best = nearest.get(p.name);
-    if (!best || p.minutes < best.minutes) nearest.set(p.name, p);
+    if (!p.list_only && (!best || p.minutes < best.minutes)) nearest.set(p.name, p);
   }
   for (const p of places) {
-    p.branch = nearest.get(p.name) === p || Boolean(p.notes || p.my_rating || p.my_cuisine || p.visited);
+    p.branch = !p.list_only &&
+      (nearest.get(p.name) === p || Boolean(p.notes || p.my_rating || p.my_cuisine || p.visited));
   }
 }
 
@@ -250,7 +253,7 @@ function saveShortlist(shortlist) {
   }
 }
 
-function start({ office, home, places, updated, tier_cuts, max_minutes, cuisine_groups = {} }) {
+function start({ office, home, places, updated, tier_cuts, max_minutes, cuisine_groups = {}, lists = {} }) {
   if (tier_cuts) tierCuts = tier_cuts;
   if (max_minutes) maxMinutes = max_minutes;
   $('time').max = $('time-min').max = maxMinutes;
@@ -258,8 +261,17 @@ function start({ office, home, places, updated, tier_cuts, max_minutes, cuisine_
   for (const p of places) p.drive = { office: p.minutes, home: p.home_minutes };
   const bases = { office, home };
   for (const p of places) p.group = cuisine_groups[p.cuisine] ?? 'Other';
-  const average = places.reduce((sum, p) => sum + p.rating, 0) / places.length;
+  const lunchPlaces = places.filter(p => !p.list_only);
+  const average = lunchPlaces.reduce((sum, p) => sum + p.rating, 0) / lunchPlaces.length;
   const shortlist = loadShortlist();
+  // Somebody's list is one more choice under Show, keyed by its option value.
+  const listed = {};
+  for (const [key, list] of Object.entries(lists)) {
+    listed[`list:${key}`] = { title: list.title, ids: new Set(list.places) };
+    const option = el('option', '', list.title);
+    option.value = `list:${key}`;
+    $('show').append(option);
+  }
   // Which cuisines belong to each group, for the checklist.
   const members = {};
   for (const p of places) (members[p.group] ??= new Set()).add(p.cuisine);
@@ -435,7 +447,8 @@ function start({ office, home, places, updated, tier_cuts, max_minutes, cuisine_
 
   function updateLunch() {
     const now = new Date(), meal = Number($('meal-duration').value);
-    const choice = lunchPool(places, state.shown, shortlist, meal, now);
+    // A list on show is what the simulation picks from, shortlist or not.
+    const choice = lunchPool(places, state.shown, listed[state.show] ? new Set() : shortlist, meal, now);
     $('counts').textContent = `${choice.places.length} of ${choice.total} ${choice.source} fit lunch` +
       (choice.unknown ? ` · ${choice.unknown} without hours` : '');
     $('simulate').disabled = state.simulating || choice.places.length === 0;
@@ -506,7 +519,12 @@ function start({ office, home, places, updated, tier_cuts, max_minutes, cuisine_
     const shortest = Number($('time-min').value), longest = Number($('time').value);
     const quality = $('quality');
     const minScore = quality.value === quality.min ? null : Number(quality.value);
-    $('time-value').textContent = shortest ? `${shortest} to ${longest} min` : `Up to ${longest} min`;
+    // A list holds places at any distance and any branch, so the drive range
+    // and the nearest-branch rule stand aside while one is on show.
+    const list = listed[state.show];
+    $('time').disabled = $('time-min').disabled = Boolean(list);
+    $('time-value').textContent = list ? 'Any, for a list'
+      : shortest ? `${shortest} to ${longest} min` : `Up to ${longest} min`;
     $('quality-value').textContent = minScore === null ? 'Any' : `${minScore.toFixed(1)}+`;
     fillTrack($('time'), shortest / maxMinutes, longest / maxMinutes);
     fillTrack(quality, (quality.value - quality.min) / (quality.max - quality.min), 1);
@@ -516,9 +534,9 @@ function start({ office, home, places, updated, tier_cuts, max_minutes, cuisine_
       visited: p => Boolean(p.visited),
       shortlist: p => shortlist.has(p.id),
     }[state.show];
-    return places.filter(p => p.branch &&
-      p.minutes >= shortest && p.minutes <= longest &&
-      (minScore === null || shownScore(p) >= minScore) && show(p) &&
+    return places.filter(p =>
+      (list ? list.ids.has(p.id) : p.branch && p.minutes >= shortest && p.minutes <= longest && show(p)) &&
+      (minScore === null || shownScore(p) >= minScore) &&
       (!state.prices.size || state.prices.has(p.price)));
   }
 
@@ -617,8 +635,11 @@ function start({ office, home, places, updated, tier_cuts, max_minutes, cuisine_
     // A search lists matches from every place and leaves the filters, pins,
     // counts and simulation as they were.
     const found = state.query ? searchPlaces(places, state.query) : null;
-    const listed = found ?? shown;
-    $('list').replaceChildren(...(listed.length ? listed.map(p => p.row) : [found ? noName : nothing]));
+    const rows = found ?? shown;
+    const list = listed[state.show];
+    nothing.textContent = list && !list.ids.size ? `Nothing on ${list.title} yet.`
+      : 'Nothing matches. Loosen a filter or move the map.';
+    $('list').replaceChildren(...(rows.length ? rows.map(p => p.row) : [found ? noName : nothing]));
 
     // Best last, so the strongest pins draw on top.
     pins.clearLayers();
@@ -636,17 +657,18 @@ function start({ office, home, places, updated, tier_cuts, max_minutes, cuisine_
     state.shown = shown;
     // What the folded-up filter bar says on a small screen.
     $('filters-summary').textContent = [
-      $('time-value').textContent,
+      list ? '' : $('time-value').textContent,
       $('quality').value === $('quality').min ? '' : $('quality-value').textContent,
       state.cuisines.size ? $('cuisine-summary').textContent : '',
       [...state.prices].sort((a, b) => a.length - b.length).join(' '),
-      { new: 'not visited', visited: 'visited', shortlist: 'shortlist' }[state.show],
+      list ? list.title : { new: 'not visited', visited: 'visited', shortlist: 'shortlist' }[state.show],
       state.inView ? 'map view' : '',
       state.base === 'home' ? 'from home' : '',
     ].filter(Boolean).join(' · ');
     $('summary').textContent = found
       ? `${found.length.toLocaleString()} ${found.length === 1 ? 'match' : 'matches'} · filters paused`
-      : `${shown.length.toLocaleString()} of ${places.length.toLocaleString()} places`;
+      : list ? `${shown.length} ${shown.length === 1 ? 'place' : 'places'} · ${shown.filter(p => p.visited).length} visited`
+      : `${shown.length.toLocaleString()} of ${lunchPlaces.length.toLocaleString()} places`;
     updateLunch();
     return shown;
   }
@@ -722,9 +744,12 @@ function start({ office, home, places, updated, tier_cuts, max_minutes, cuisine_
   document.addEventListener('click', event => {
     if ($('cuisine-menu').open && !event.composedPath().includes($('cuisine-menu'))) $('cuisine-menu').open = false;
   });
+  // Going to or from a list reframes the map, since a list reaches farther.
   $('show').addEventListener('change', event => {
+    const wasList = listed[state.show];
     state.show = event.target.value;
-    render();
+    if (wasList || listed[state.show]) reframe();
+    else render();
   });
   for (const sortButton of document.querySelectorAll('#sort button')) {
     sortButton.addEventListener('click', () => {

@@ -160,3 +160,13 @@ test('a base sets the drive times and the nearest branch of each name', () => {
   app.useBase(places, 'office');
   assert.deepEqual(places.map(p => p.branch), [true, false, true, true]);
 });
+
+test('a place kept only for a list is never a branch, nor the nearest of its name', () => {
+  const places = [
+    { name: 'Mot Hai Ba', drive: { office: 5, home: 5 }, list_only: true, visited: true },
+    { name: 'Mot Hai Ba', drive: { office: 15, home: 15 } },
+  ];
+  app.useBase(places, 'office');
+  assert.deepEqual(places.map(p => p.minutes), [5, 15]);
+  assert.deepEqual(places.map(p => p.branch), [false, true]);
+});
