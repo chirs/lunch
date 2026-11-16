@@ -15,7 +15,8 @@ def test_fields(place):
         assert place.get(field), f"missing {field}"
     assert place.get("price", "$") in ("$", "$$", "$$$", "$$$$")
     times = [m for m in (place["minutes"], place.get("home_minutes")) if m is not None]
-    assert 0 < min(times) <= MAX_MINUTES, "run update.py"
+    assert 0 < min(times), "run update.py"
+    assert min(times) <= MAX_MINUTES or place.get("list_only"), "run update.py"
     if "score" in place:
         assert 1 <= place["score"] <= 5
     if "my_rating" in place:
@@ -29,3 +30,11 @@ def test_fields(place):
 def test_no_duplicates():
     keys = [p.get("id", p["name"]) for p in PLACE_LIST]
     assert len(keys) == len(set(keys))
+
+
+def test_listed_places_exist():
+    ids = {p["id"] for p in PLACE_LIST}
+    listed = {id for entry in DATA.get("lists", {}).values() for id in entry["places"]}
+    assert listed <= ids, "run update.py --cached"
+    kept_for_a_list = {p["id"] for p in PLACE_LIST if p.get("list_only")}
+    assert kept_for_a_list <= listed, "run update.py --cached"

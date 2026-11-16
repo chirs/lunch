@@ -15,7 +15,8 @@ Google's Nearby Search returns at most 20 places per call with no paging, so
 discovery walks a hex grid of circles over the land within a drive of the
 office or home and splits any circle that comes back full. Drive times are measured from both bases in places.json,
 the office and home, and a place is kept if either is close enough. Hand-written fields (notes, my_rating, visited, hidden)
-survive every run.
+survive every run, and so does each person's list (see lists.py), whose places
+are kept whatever the lunch rules say.
 """
 
 import argparse
@@ -687,8 +688,8 @@ def merge(existing, records):
     return records, lost
 
 
-def nearest_per_name(places, fields=("minutes",)):
-    """One pin per chain: the closest branch to each base, plus any branch with hand fields."""
+def nearest_per_name(places, fields=("minutes",), keep=()):
+    """One pin per chain: the closest branch to each base, plus any branch with hand fields or an ID in keep."""
     nearest = set()
     for field in fields:
         best = {}
@@ -701,8 +702,13 @@ def nearest_per_name(places, fields=("minutes",)):
     return [
         place
         for place in places
-        if id(place) in nearest or any(place.get(field) for field in HAND_FIELDS)
+        if id(place) in nearest or place.get("id") in keep or any(place.get(field) for field in HAND_FIELDS)
     ]
+
+
+def listed_ids(data):
+    """Every place on somebody's list. These stay whatever the lunch and drive-time rules say."""
+    return {id for entry in data.get("lists", {}).values() for id in entry["places"]}
 
 
 def drive_minutes(origin, places):
@@ -725,7 +731,8 @@ def drive_minutes(origin, places):
 
 def add_scores(places):
     """Google's rating pulled toward the average, harder the fewer the reviews."""
-    rated = [p for p in places if "rating" in p]
+    # A place kept only for a list is not part of the lunch map's average.
+    rated = [p for p in places if "rating" in p and not p.get("list_only")]
     if rated:
         average = statistics.mean(p["rating"] for p in rated)
         weight = statistics.median(p["reviews"] for p in rated)
@@ -741,7 +748,7 @@ def add_scores(places):
 
 def tier_cuts(places):
     """Score cuts, in tenths, that put about a fifth of the places in each outer tier."""
-    scores = [round(p["score"], 1) for p in places if "score" in p]
+    scores = [round(p["score"], 1) for p in places if "score" in p and not p.get("list_only")]
     steps = sorted(set(scores))
 
     def off_a_fifth(count):
@@ -853,13 +860,22 @@ def main():
         key = api_key()
         add_summaries(raw["places"], bases, lambda id: place_details(key, id, SUMMARY_MASK), SUMMARY_CALLS)
         RAW.write_text(json.dumps(raw))
+    rebuild(data, bases)
+
+
+def rebuild(data, bases):
+    """Everything after the fetch: filter the saved results, then time, score and write."""
+    listed = listed_ids(data)
     if RAW.exists():
         raw = json.loads(RAW.read_text())
         reasons = Counter()
         records = []
         for place in raw["places"].values():
             reason = drop_reason(place, bases)
-            if reason:
+            if reason and place["id"] in listed:
+                print(f"  kept for a list though {reason}: {place['displayName']['text']}")
+                records.append({**to_record(place), "list_only": True})
+            elif reason:
                 reasons[reason] += 1
             else:
                 records.append(to_record(place))
@@ -882,12 +898,24 @@ def main():
         for place, minutes in zip(untimed, drive_minutes(base, untimed)):
             place[field] = minutes
         print(f"timed {len(untimed)} places for {field}")
-    in_range = [
-        p for p in data["places"] if any(p[f] is not None and p[f] <= MAX_MINUTES for f in fields)
-    ]
+    # A listed place stays however far it is, marked so the site keeps it off
+    # the lunch map. One that has left its list goes back under the usual rules.
+    in_range = []
+    for place in data["places"]:
+        near = any(place[f] is not None and place[f] <= MAX_MINUTES for f in fields)
+        if place.get("id") in listed:
+            if not near:
+                place["list_only"] = True
+            in_range.append(place)
+        elif near and not place.get("list_only"):
+            in_range.append(place)
     print(f"dropped {len(data['places']) - len(in_range)} over {MAX_MINUTES} minutes from every base")
-    kept = nearest_per_name(in_range, fields)
+    # A list-only branch does not compete to be a name's nearest.
+    lunch = [p for p in in_range if not p.get("list_only")]
+    kept = nearest_per_name(lunch, fields, listed) + [p for p in in_range if p.get("list_only")]
     print(f"dropped {len(in_range) - len(kept)} farther branches of the same name")
+    for id in sorted(listed - {p.get("id") for p in kept}):
+        print(f"  on a list but not found: {id}")
 
     add_scores(kept)
     data["tier_cuts"] = tier_cuts(kept)

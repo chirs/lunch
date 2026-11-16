@@ -639,3 +639,58 @@ def test_unrated_places_get_no_score():
     places = [{"name": "Hand entry", "score": 4.1}, {"rating": 4.4, "reviews": 100}]
     add_scores(places)
     assert "score" not in places[0]
+
+
+def test_nearest_per_name_keeps_listed_branches():
+    places = [
+        {"id": "far", "name": "Mi Cocina", "minutes": 12.0},
+        {"id": "near", "name": "Mi Cocina", "minutes": 6.0},
+    ]
+    assert nearest_per_name(places, keep={"far"}) == places
+
+
+def test_scores_and_tiers_ignore_list_only_places():
+    lunch = [{"name": str(n), "rating": 4.0 + n / 10, "reviews": 100} for n in range(10)]
+    extra = [{"name": "far", "rating": 1.0, "reviews": 100_000, "list_only": True} for _ in range(10)]
+    add_scores(lunch)
+    alone = [p["score"] for p in lunch]
+    add_scores(lunch + extra)
+    assert [p["score"] for p in lunch] == alone
+    assert tier_cuts(lunch + extra) == tier_cuts(lunch)
+
+
+def rebuild_with(monkeypatch, tmp_path, raw_places, data, minutes):
+    places_path, raw_path = tmp_path / "places.json", tmp_path / "google_raw.json"
+    raw_path.write_text(json.dumps({"fetched": "2026-09-01", "places": raw_places}))
+    monkeypatch.setattr(update, "PLACES", places_path)
+    monkeypatch.setattr(update, "RAW", raw_path)
+    monkeypatch.setattr(update, "drive_minutes", lambda base, places: [minutes[p["id"]] for p in places])
+    update.rebuild(data, [OFFICE])
+    return {p["id"]: p for p in json.loads(places_path.read_text())["places"]}
+
+
+def test_listed_places_survive_the_lunch_rules_and_the_drive_cap(monkeypatch, tmp_path, capsys):
+    dinner = [hours(day, 17, 22) for day in range(7)]
+    raw = {
+        "lunch": google_place(id="lunch", displayName={"text": "Lunch"}),
+        "dinner": google_place(id="dinner", displayName={"text": "Dinner"}, regularOpeningHours={"periods": dinner}),
+        "far": google_place(id="far", displayName={"text": "Far"}),
+        "unlisted": google_place(id="unlisted", displayName={"text": "Unlisted"}, regularOpeningHours={"periods": dinner}),
+        "too far": google_place(id="too far", displayName={"text": "Too Far"}),
+    }
+    minutes = {"lunch": 5.0, "dinner": 5.0, "far": 40.0, "unlisted": 5.0, "too far": 40.0}
+    lists = {"chris": {"title": "Chris's list", "places": ["lunch", "dinner", "far", "gone"]}}
+    data = {"office": OFFICE, "lists": lists, "places": []}
+
+    places = rebuild_with(monkeypatch, tmp_path, raw, data, minutes)
+
+    assert set(places) == {"lunch", "dinner", "far"}
+    assert "list_only" not in places["lunch"]
+    assert places["dinner"]["list_only"] is True
+    assert places["far"]["list_only"] is True
+    assert "on a list but not found: gone" in capsys.readouterr().out
+
+    # Off the list, the usual rules apply again.
+    lists["chris"]["places"] = ["lunch"]
+    places = rebuild_with(monkeypatch, tmp_path, raw, data, minutes)
+    assert set(places) == {"lunch"}
